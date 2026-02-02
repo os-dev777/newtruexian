@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Unrelated Bible Passage Combiner</title>
+
+  <!-- Optional. Remove if you want fully offline. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=IM+Fell+English+SC&display=swap" rel="stylesheet">
+
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; font: 16px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:#0b0c10; color:#eaeaea; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 20px; }
+    h1 { margin: 0 0 10px; font-size: 22px; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
+    .card { background:#12151d; border:1px solid #22283a; border-radius: 10px; padding: 14px; }
+    .controls { flex: 1 1 520px; }
+    .controls label { display:block; font-size: 12px; opacity: .9; margin: 10px 0 6px; }
+    input, select, button { font: inherit; }
+    input, select { width: 100%; padding: 10px; border-radius: 8px; border:1px solid #2a3248; background:#0f1220; color:#eaeaea; }
+    button { padding: 10px 14px; border-radius: 8px; border:1px solid #2a3248; background:#1a2040; color:#fff; cursor:pointer; }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    .grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 12px; }
+    @media (min-width: 900px){ .grid { grid-template-columns: 1fr 1fr; } }
+    pre { margin: 0; white-space: pre-wrap; word-break: break-word; background:#0f1220; border:1px solid #2a3248; border-radius: 10px; padding: 12px; }
+    .muted { opacity: .85; font-size: 13px; }
+    .pill { display:inline-block; padding: 4px 8px; border-radius: 999px; border:1px solid #2a3248; background:#0f1220; font-size: 12px; margin-right: 6px; }
+    .actions { display:flex; gap:10px; flex-wrap:wrap; margin-top: 12px; }
+    .inline { display:flex; gap:10px; flex-wrap:wrap; align-items:end; }
+    .inline > div { flex: 1 1 200px; }
+    .beliefTitle { font-family: "Trajan Pro", Cinzel, serif; font-weight: 800; font-size: 16px; margin: 0 0 8px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Unrelated Bible Passage Combiner</h1>
+
+    <div class="card controls">
+      <div class="row">
+        <div style="flex:1 1 180px;">
+          <label>How many passages (2 to 5)</label>
+          <select id="count">
+            <option>2</option><option>3</option><option selected>4</option><option>5</option>
+          </select>
+        </div>
+
+        <div style="flex:1 1 220px;">
+          <label>Translation (bible-api.com)</label>
+          <select id="translation">
+            <option value="kjv" selected>KJV</option>
+            <option value="web">WEB</option>
+            <option value="asv">ASV</option>
+            <option value="ylt">YLT</option>
+            <option value="bbe">BBE</option>
+          </select>
+        </div>
+
+        <div style="flex:1 1 220px;">
+          <label>Passage length (verses per pull)</label>
+          <select id="len">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3" selected>3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+          </select>
+        </div>
+
+        <div style="flex:0 0 auto;">
+          <button id="go">Generate New Belief</button>
+        </div>
+      </div>
+
+      <div class="inline" style="margin-top: 10px;">
+        <div>
+          <label>Export PNG size</label>
+          <select id="pngSize">
+            <option value="1080" selected>1080×1080 (IG)</option>
+            <option value="1350">1080×1350 (IG portrait)</option>
+            <option value="1920">1920×1080 (YouTube thumb)</option>
+          </select>
+        </div>
+        <div>
+          <label>PNG filename prefix</label>
+          <input id="filePrefix" value="belief" />
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="exportPng" disabled>Export This Belief (PNG)</button>
+        <button id="exportJson" disabled>Export JSON</button>
+        <div style="flex:1 1 260px;">
+          <label style="margin:0 0 6px;">Import JSON (re-load belief)</label>
+          <input id="importJson" type="file" accept="application/json" />
+        </div>
+      </div>
+
+      <div class="muted" style="margin-top:10px;">
+        Pulls random verses, expands to short ranges, combines them, then generates a named fake doctrine and exports it.
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="muted" style="margin-bottom:8px;">Pulled passages</div>
+        <pre id="refs">None yet.</pre>
+      </div>
+
+      <div class="card">
+        <div class="muted" style="margin-bottom:8px;">Synthesized “new belief”</div>
+        <div class="beliefTitle" id="beliefName">No belief name yet.</div>
+        <pre id="belief">Click “Generate New Belief”.</pre>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:12px;">
+      <div class="muted" style="margin-bottom:8px;">Combined prooftext</div>
+      <pre id="combo"></pre>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+
+  const btnGenerate = $("go");
+  const btnPng = $("exportPng");
+  const btnJson = $("exportJson");
+
+  // Current entry stored for export/import
+  let currentEntry = null;
+
+  function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+  function cleanText(s){
+    return (s || "")
+      .replace(/\s+/g, " ")
+      .replace(/\s([,.;:!?])/g, "$1")
+      .trim();
+  }
+
+  function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
+
+  // Simple deterministic hash to drive "naming" without needing a RNG seed lib
+  function hashString(str){
+    let h = 2166136261;
+    for (let i = 0; i < str.length; i++){
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return (h >>> 0);
+  }
+
+  function pickFrom(arr, seed){
+    return arr[seed % arr.length];
+  }
+
+  function pickThemeScores(text){
+    const t = text.toLowerCase();
+    const themes = [
+      { key:"apocalypse", label:"End Times Panic", words:["wrath","judg","trumpet","beast","fire","lake","last day","coming","day of the lord"] },
+      { key:"purity", label:"Purity Spiral", words:["clean","unclean","pure","defile","holy","sanct","abomination"] },
+      { key:"obedience", label:"Obedience Ladder", words:["obey","command","statute","law","keep","submit","fear the lord"] },
+      { key:"money", label:"Money Theology", words:["gold","silver","rich","poor","treasure","lend","debt","tithe"] },
+      { key:"outsiders", label:"Anti Outsiders", words:["stranger","foreigner","gentile","uncircumcis","samaritan","heathen"] },
+      { key:"sex", label:"Sex Fixation", words:["bed","adultery","whore","fornication","lust"] },
+      { key:"violence", label:"Violence Justification", words:["sword","slay","kill","stone","vengeance","smite"] },
+      { key:"comfort", label:"Comfort Blanket", words:["peace","rest","comfort","hope","mercy","grace","love"] },
+    ];
+
+    const scores = {};
+    for (const th of themes){
+      let s = 0;
+      for (const w of th.words){
+        if (t.includes(w)) s += 1;
+      }
+      scores[th.key] = { label: th.label, score: s };
+    }
+    return scores;
+  }
+
+  function topThemes(scores, n=3){
+    return Object.entries(scores)
+      .sort((a,b) => (b[1].score - a[1].score))
+      .slice(0, n)
+      .filter(x => x[1].score > 0)
+      .map(x => x[0]);
+  }
+
+  function themeToNameWords(themeKey){
+    const map = {
+      apocalypse: ["Wrath", "Trumpet", "Ash", "Last Dawn", "Cinder"],
+      purity: ["Purity", "Cleansing", "White Fire", "Sanctum", "Unblemished"],
+      obedience: ["Obedience", "Statute", "Command", "Submission", "The Yoke"],
+      money: ["Coin", "Tithe", "Treasure", "Gold", "Debt"],
+      outsiders: ["Strangers", "Outsiders", "The Unmarked", "The Foreign", "The Other"],
+      sex: ["Chastity", "The Bed", "Temptation", "Veil", "Flesh"],
+      violence: ["Sword", "Stone", "Vengeance", "Smite", "Iron Law"],
+      comfort: ["Mercy", "Peace", "Rest", "Grace", "Soft Light"]
+    };
+    return map[themeKey] || ["Doctrine", "Covenant", "Order", "Rule", "Mystery"];
+  }
+
+  function synthBelief(combinedText, refs){
+    const scores = pickThemeScores(combinedText);
+    const ranked = Object.entries(scores).sort((a,b) => (b[1].score - a[1].score));
+    const top = ranked.slice(0,3).filter(x => x[1].score > 0);
+    const tags = top.map(x => x[1].label);
+    const tagLine = tags.length ? tags.map(t => `[${t}]`).join(" ") : "[Pure Vibes, No Evidence]";
+
+    const frames = [
+      "New doctrine: All reality is a compliance test. Rewards are delayed, punishments are immediate, and contradictions are a feature.",
+      "New doctrine: The universe runs on secret clauses. If you feel confused, that is the intended spiritual state.",
+      "New doctrine: Moral clarity is achieved by stitching unrelated lines together. Context is a temptation.",
+      "New doctrine: The correct path is whichever sentence sounds angriest when read out loud.",
+      "New doctrine: Suffering is mandatory. Any relief is suspicious and probably counterfeit.",
+      "New doctrine: Wealth proves righteousness unless a passage says it does not. In that case, wealth proves humility.",
+    ];
+
+    const seed = hashString(combinedText);
+    const frame = frames[seed % frames.length];
+    const proof = refs.length ? `Prooftexts: ${refs.join(" | ")}` : "Prooftexts: unavailable.";
+
+    const body =
+`${tagLine}
+
+${frame}
+
+Interpretation: Because these passages appear together, they must be a unified message. Therefore, your obligations are infinite and your interpretation is always correct.
+
+${proof}`;
+
+    return { body, scores };
+  }
+
+  function generateBeliefName(combinedText, themeKeys){
+    const seed = hashString(combinedText);
+    const patterns = [
+      "The {NOUN} of {NOUN2}",
+      "Order of the {NOUN}",
+      "The {ADJ} Covenant",
+      "The Book of {NOUN}",
+      "{ADJ} {NOUN} Doctrine",
+      "The Church of {NOUN}",
+      "The {NOUN} Mandate",
+      "The {ADJ} Rule of {NOUN}"
+    ];
+    const adjectives = ["Sacred", "Hidden", "Infernal", "Unbroken", "Final", "Radiant", "Severe", "Immutable", "Unseen", "Ancient"];
+    const fallbackNouns = ["Context", "Contradiction", "Assumption", "Footnote", "Coincidence", "Prooftext", "Clause", "Inference"];
+
+    const t1 = themeKeys[0] || null;
+    const t2 = themeKeys[1] || null;
+
+    const nouns1 = t1 ? themeToNameWords(t1) : fallbackNouns;
+    const nouns2 = t2 ? themeToNameWords(t2) : fallbackNouns;
+
+    const patt = pickFrom(patterns, seed);
+    const adj = pickFrom(adjectives, seed >>> 3);
+    const noun = pickFrom(nouns1, seed >>> 5);
+    const noun2 = pickFrom(nouns2, seed >>> 7);
+
+    return patt
+      .replace("{ADJ}", adj)
+      .replace("{NOUN}", noun)
+      .replace("{NOUN2}", noun2);
+  }
+
+  async function fetchJson(url){
+    const r = await fetch(url, { method: "GET" });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return await r.json();
+  }
+
+  function encodePassage(p){ return encodeURIComponent(p).replace(/%20/g, "%20"); }
+
+  async function getPassageFromBibleApi(translation, len){
+    const seedUrl = `https://bible-api.com/data/${encodeURIComponent(translation)}/random`;
+    const seed = await fetchJson(seedUrl);
+
+    const rv = seed.random_verse || (seed.verses && seed.verses[0]) || seed;
+    const book = rv.book || rv.book_name || rv.book_id || rv.bookId || rv.bookName;
+    const chapter = Number(rv.chapter);
+    const verse = Number(rv.verse);
+
+    if (!book || !chapter || !verse) {
+      const ref = seed.reference || "Random verse";
+      const text = cleanText(seed.text || (seed.verses || []).map(v => v.text).join(" "));
+      return { ref, text };
+    }
+
+    const end = Math.max(verse, verse + Number(len) - 1);
+    const passage = `${book} ${chapter}:${verse}-${end}`;
+    const passageUrl = `https://bible-api.com/${encodePassage(passage)}?translation=${encodeURIComponent(translation)}`;
+
+    const got = await fetchJson(passageUrl);
+    const text = cleanText((got.verses || []).map(v => v.text).join(" "));
+    const ref = got.reference || passage;
+
+    if (!text) throw new Error("Empty passage text");
+    return { ref, text };
+  }
+
+  async function getPassageFromNetLabs(){
+    const url = `https://labs.bible.org/api/?passage=random&type=json`;
+    const arr = await fetchJson(url);
+    const v = Array.isArray(arr) ? arr[0] : arr;
+
+    const ref = v ? `${v.bookname} ${v.chapter}:${v.verse}` : "Random verse";
+    const text = cleanText(v && v.text ? v.text : "");
+    if (!text) throw new Error("Empty NET labs text");
+    return { ref, text };
+  }
+
+  async function getOne(translation, len){
+    try {
+      return await getPassageFromBibleApi(translation, len);
+    } catch (e) {
+      await sleep(120);
+      return await getPassageFromNetLabs();
+    }
+  }
+
+  function downloadBlob(filename, blob){
+    const a = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function safeFilename(s){
+    return (s || "belief")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 64) || "belief";
+  }
+
+  // ---------- PNG Export (canvas) ----------
+  function makeCanvas(w, h){
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    return c;
+  }
+
+  function drawParchment(ctx, w, h, seed){
+    // Base gradient
+    const g = ctx.createLinearGradient(0, 0, w, h);
+    g.addColorStop(0, "#ead8b0");
+    g.addColorStop(1, "#caa97a");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+
+    // Noise speckles
+    const img = ctx.getImageData(0, 0, w, h);
+    const d = img.data;
+
+    // Deterministic pseudo-rand
+    let r = seed >>> 0;
+    const rand = () => {
+      r ^= r << 13; r >>>= 0;
+      r ^= r >> 17; r >>>= 0;
+      r ^= r << 5;  r >>>= 0;
+      return (r >>> 0) / 4294967295;
+    };
+
+    for (let i = 0; i < d.length; i += 4){
+      const n = (rand() - 0.5) * 26; // intensity
+      d[i] = clamp(d[i] + n, 0, 255);
+      d[i+1] = clamp(d[i+1] + n, 0, 255);
+      d[i+2] = clamp(d[i+2] + n, 0, 255);
+      // alpha unchanged
+    }
+    ctx.putImageData(img, 0, 0);
+
+    // Edge vignette
+    const vg = ctx.createRadialGradient(w*0.5, h*0.5, Math.min(w,h)*0.2, w*0.5, h*0.5, Math.max(w,h)*0.7);
+    vg.addColorStop(0, "rgba(0,0,0,0)");
+    vg.addColorStop(1, "rgba(0,0,0,0.35)");
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, w, h);
+
+    // Border
+    ctx.strokeStyle = "rgba(40,25,10,0.65)";
+    ctx.lineWidth = Math.max(6, Math.round(Math.min(w,h) * 0.008));
+    ctx.strokeRect(ctx.lineWidth/2, ctx.lineWidth/2, w - ctx.lineWidth, h - ctx.lineWidth);
+  }
+
+  function wrapText(ctx, text, x, y, maxWidth, lineHeight, maxLines = Infinity){
+    const words = (text || "").split(/\s+/);
+    let line = "";
+    let lines = 0;
+
+    for (let i = 0; i < words.length; i++){
+      const test = line ? line + " " + words[i] : words[i];
+      if (ctx.measureText(test).width > maxWidth && line){
+        ctx.fillText(line, x, y);
+        y += lineHeight;
+        lines++;
+        line = words[i];
+        if (lines >= maxLines) return { y, truncated: true };
+      } else {
+        line = test;
+      }
+    }
+    if (line && lines < maxLines){
+      ctx.fillText(line, x, y);
+      y += lineHeight;
+      lines++;
+    }
+    return { y, truncated: false };
+  }
+
+  function exportBeliefPNG(entry){
+    const choice = $("pngSize").value;
+
+    let w = 1080, h = 1080;
+    if (choice === "1350") { w = 1080; h = 1350; }
+    if (choice === "1920") { w = 1920; h = 1080; }
+
+    const c = makeCanvas(w, h);
+    const ctx = c.getContext("2d");
+
+    const seed = hashString(entry.combinedText);
+    drawParchment(ctx, w, h, seed);
+
+    // Text styling
+    const pad = Math.round(Math.min(w,h) * 0.07);
+    const innerW = w - pad*2;
+
+    ctx.fillStyle = "rgba(20,12,6,0.92)";
+
+    // Title
+    const titleFont = Math.round(Math.min(w,h) * 0.055);
+    ctx.font = `800 ${titleFont}px "Trajan Pro", Cinzel, serif`;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    let y = pad;
+
+    // Title wrap
+    y = wrapText(ctx, entry.beliefName, pad, y, innerW, Math.round(titleFont * 1.15), 2).y;
+    y += Math.round(titleFont * 0.35);
+
+    // Divider
+    ctx.strokeStyle = "rgba(20,12,6,0.55)";
+    ctx.lineWidth = Math.max(2, Math.round(Math.min(w,h) * 0.003));
+    ctx.beginPath();
+    ctx.moveTo(pad, y);
+    ctx.lineTo(w - pad, y);
+    ctx.stroke();
+    y += Math.round(titleFont * 0.55);
+
+    // Tagline
+    const tags = entry.tags?.length ? entry.tags : ["Pure Vibes, No Evidence"];
+    ctx.font = `600 ${Math.round(titleFont * 0.55)}px "IM Fell English SC", serif`;
+    ctx.fillText(tags.map(t => `[${t}]`).join(" "), pad, y);
+    y += Math.round(titleFont * 0.9);
+
+    // Doctrine body (shortened for meme)
+    ctx.font = `400 ${Math.round(titleFont * 0.48)}px "IM Fell English SC", serif`;
+    const doctrine = entry.beliefText
+      .split("\n")
+      .filter(Boolean)
+      .slice(1) // drop the first tag line since we already show tags
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    // Keep it meme-friendly: clamp lines
+    const bodyBlock = wrapText(ctx, doctrine, pad, y, innerW, Math.round(titleFont * 0.78), (h > w ? 10 : 8));
+    y = bodyBlock.y;
+    y += Math.round(titleFont * 0.6);
+
+    // Prooftexts (refs only)
+    ctx.font = `700 ${Math.round(titleFont * 0.42)}px "Trajan Pro", Cinzel, serif`;
+    ctx.fillText("PROOFTEXTS", pad, y);
+    y += Math.round(titleFont * 0.65);
+
+    ctx.font = `400 ${Math.round(titleFont * 0.42)}px "IM Fell English SC", serif`;
+    const refsLine = entry.refs.join(" · ");
+    wrapText(ctx, refsLine, pad, y, innerW, Math.round(titleFont * 0.68), 3);
+
+    // Footer watermark
+    ctx.globalAlpha = 0.75;
+    ctx.font = `600 ${Math.round(titleFont * 0.32)}px "Trajan Pro", Cinzel, serif`;
+    ctx.textAlign = "right";
+    ctx.fillText("UNRELATED BIBLE PASSAGE COMBINER", w - pad, h - pad - Math.round(titleFont * 0.2));
+    ctx.globalAlpha = 1;
+
+    c.toBlob((blob) => {
+      const prefix = ($("filePrefix").value || "belief").trim();
+      const file = `${safeFilename(prefix)}_${safeFilename(entry.beliefName)}_${Date.now()}.png`;
+      downloadBlob(file, blob);
+    }, "image/png");
+  }
+
+  function exportBeliefJSON(entry){
+    const prefix = ($("filePrefix").value || "belief").trim();
+    const file = `${safeFilename(prefix)}_${safeFilename(entry.beliefName)}_${Date.now()}.json`;
+    const blob = new Blob([JSON.stringify(entry, null, 2)], { type: "application/json" });
+    downloadBlob(file, blob);
+  }
+
+  function renderEntry(entry){
+    $("refs").textContent = entry.refs.map(r => `• ${r}`).join("\n");
+    $("combo").textContent = entry.pulled.map((p, i) => `${i+1}. (${p.ref}) ${p.text}`).join("\n\n");
+    $("beliefName").textContent = entry.beliefName;
+    $("belief").textContent = entry.beliefText;
+
+    btnPng.disabled = false;
+    btnJson.disabled = false;
+  }
+
+  // ---------- UI events ----------
+  btnGenerate.addEventListener("click", async () => {
+    btnGenerate.disabled = true;
+    btnPng.disabled = true;
+    btnJson.disabled = true;
+
+    $("refs").textContent = "Loading...";
+    $("beliefName").textContent = "Naming...";
+    $("belief").textContent = "Loading...";
+    $("combo").textContent = "";
+
+    try {
+      const count = Number($("count").value);
+      const translation = $("translation").value;
+      const len = Number($("len").value);
+
+      const pulls = [];
+      for (let i = 0; i < count; i++){
+        pulls.push(getOne(translation, len));
+        await sleep(120);
+      }
+
+      const results = await Promise.all(pulls);
+      const refs = results.map(r => r.ref);
+      const combinedText = results.map(r => r.text).join(" ");
+
+      const synth = synthBelief(combinedText, refs);
+      const themeKeys = topThemes(synth.scores, 3);
+      const beliefName = generateBeliefName(combinedText, themeKeys);
+
+      const rankedTags = Object.entries(synth.scores)
+        .sort((a,b) => b[1].score - a[1].score)
+        .filter(x => x[1].score > 0)
+        .slice(0,3)
+        .map(x => x[1].label);
+
+      currentEntry = {
+        version: 1,
+        createdAt: new Date().toISOString(),
+        settings: { count, translation, len },
+        pulled: results,
+        refs,
+        combinedText,
+        themeScores: synth.scores,
+        themeKeys,
+        tags: rankedTags.length ? rankedTags : ["Pure Vibes, No Evidence"],
+        beliefName,
+        beliefText: synth.body
+      };
+
+      renderEntry(currentEntry);
+    } catch (err) {
+      $("refs").textContent = "Failed to fetch passages.";
+      $("beliefName").textContent = "No belief name.";
+      $("belief").textContent = String(err && err.message ? err.message : err);
+      $("combo").textContent = "";
+      currentEntry = null;
+    } finally {
+      btnGenerate.disabled = false;
+    }
+  });
+
+  btnPng.addEventListener("click", () => {
+    if (!currentEntry) return;
+    exportBeliefPNG(currentEntry);
+  });
+
+  btnJson.addEventListener("click", () => {
+    if (!currentEntry) return;
+    exportBeliefJSON(currentEntry);
+  });
+
+  $("importJson").addEventListener("change", async (ev) => {
+    const f = ev.target.files && ev.target.files[0];
+    if (!f) return;
+
+    try {
+      const txt = await f.text();
+      const obj = JSON.parse(txt);
+
+      // Minimal validation
+      if (!obj || !obj.pulled || !obj.refs || !obj.beliefText || !obj.beliefName) {
+        throw new Error("Invalid JSON format. Missing required fields.");
+      }
+
+      currentEntry = obj;
+
+      // Restore UI selectors if present
+      if (obj.settings) {
+        if (typeof obj.settings.count === "number") $("count").value = String(obj.settings.count);
+        if (typeof obj.settings.translation === "string") $("translation").value = obj.settings.translation;
+        if (typeof obj.settings.len === "number") $("len").value = String(obj.settings.len);
+      }
+
+      renderEntry(currentEntry);
+    } catch (e) {
+      alert("Import failed: " + (e && e.message ? e.message : String(e)));
+    } finally {
+      ev.target.value = "";
+    }
+  });
+})();
+</script>
+</body>
+</html>
