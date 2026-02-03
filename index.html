@@ -32,13 +32,22 @@
     .inline { display:flex; gap:10px; flex-wrap:wrap; align-items:end; }
     .inline > div { flex: 1 1 200px; }
     .beliefTitle { font-family: "Trajan Pro", Cinzel, serif; font-weight: 800; font-size: 16px; margin: 0 0 8px; }
+    .headerHero { display:flex; gap:14px; align-items:flex-start; margin: 0 0 14px; }
+    .headerIcon { width:100px; height:100px; flex:0 0 100px; }
+    .headerText h1 { margin: 0 0 10px; font-size: 22px; }
+    .headerText p { margin: 0 0 10px; }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>Unrelated Bible Passage Combiner</h1>
-    <p>Did you know the modern idea of the “Rapture” was created in the 1830s when preacher John Nelson Darby stitched together several unrelated Bible passages into a brand-new end-times framework?</p>
-    <p>In that same spirit, this app randomly combines 2–5 passages and generates a fresh “doctrine” on the spot. It names the belief, lists the prooftexts, and lets you export it as a parchment-style meme PNG or as JSON so you can save, share, and re-import your favorite new heresies later.</p>
+    <div class="headerHero">
+      <img class="headerIcon" src="header-icon.png" alt="Glowing Bible with question mark" />
+      <div class="headerText">
+        <h1>Unrelated Bible Passage Combiner</h1>
+        <p>Did you know the modern idea of the “Rapture” was created in the 1830s when preacher John Nelson Darby stitched together several unrelated Bible passages into a brand-new end-times framework?</p>
+        <p>In that same spirit, this app randomly combines 2–5 passages and generates a fresh “doctrine” on the spot. It names the belief, lists the prooftexts, and lets you export it as a parchment-style meme PNG or as JSON so you can save, share, and re-import your favorite new heresies later.</p>
+      </div>
+    </div>
 
     <div class="card controls">
       <div class="row">
