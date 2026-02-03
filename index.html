@@ -12,6 +12,11 @@
 
   <style>
     :root { color-scheme: dark; }
+    :root { --ray1: rgba(190, 220, 255, 0.85); --ray2: rgba(140, 190, 255, 0.45); --ray3: rgba(90, 140, 220, 0.25); }
+    #go { position: relative; border-color: rgba(120, 170, 255, 0.35); animation: rayPulse 3s ease-in-out infinite; box-shadow: 0 0 0 rgba(0,0,0,0); }
+    @keyframes rayPulse { 0%, 100% { box-shadow: 0 0 10px 2px var(--ray2), 0 0 22px 6px var(--ray3), 0 10px 22px rgba(0,0,0,0.35); filter: brightness(1); } 50% { box-shadow: 0 0 14px 4px var(--ray1), 0 0 34px 12px var(--ray2), 0 0 60px 22px var(--ray3), 0 12px 28px rgba(0,0,0,0.45); filter: brightness(1.08); } }
+    #go:hover { border-color: rgba(190, 220, 255, 0.7); }
+    @media (prefers-reduced-motion: reduce) { #go { animation: none; } }
     body { margin: 0; font: 16px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:#0b0c10; color:#eaeaea; }
     .wrap { max-width: 980px; margin: 0 auto; padding: 20px; }
     h1 { margin: 0 0 10px; font-size: 22px; }
@@ -36,6 +41,7 @@
     .headerIcon { width:170px; height:170px; flex:0 0 170px; }
     .headerText h1 { margin: 0 0 10px; font-size: 22px; }
     .headerText p { margin: 0 0 10px; font-size: 14px; }
+    
   </style>
 </head>
 <body>
@@ -231,6 +237,20 @@
       "New doctrine: Wealth proves righteousness unless a passage says it does not. In that case, wealth proves humility.",
     ];
 
+    const interpretations = [
+      "Interpretation: Since these verses are adjacent now, they are obviously about the same thing. Therefore, your new doctrine is self-authenticating.",
+      "Interpretation: Context is a modern invention. Therefore, the loudest-sounding reading is the correct one.",
+      "Interpretation: Cross-references are basically peer review. Therefore, any contradiction is actually ‘mystery.’",
+      "Interpretation: If the wording feels vague, that just means it applies to everything. Therefore, you are always implicated.",
+      "Interpretation: If two passages disagree, the one that scares you wins. Therefore, compliance is mandatory.",
+      "Interpretation: The Spirit meant for you to combine these today. Therefore, dissent is rebellion.",
+      "Interpretation: Literal when convenient, symbolic when cornered. Therefore, the doctrine cannot be falsified.",
+      "Interpretation: Because these passages appear together, they must be a unified message. Therefore, your obligations are infinite and your interpretation is always correct.",
+      "Interpretation: Any ‘misreading’ is proof you weren’t humble enough. Therefore, double down.",
+      "Interpretation: If it sounds poetic, it’s prophecy. Therefore, treat metaphors as instructions."
+    ];
+
+
     const seed = hashString(combinedText);
     const frame = frames[seed % frames.length];
     const proof = refs.length ? `Prooftexts: ${refs.join(" | ")}` : "Prooftexts: unavailable.";
@@ -240,7 +260,7 @@
 
 ${frame}
 
-Interpretation: Because these passages appear together, they must be a unified message. Therefore, your obligations are infinite and your interpretation is always correct.
+${interpretations[(seed >>> 9) % interpretations.length]}
 
 ${proof}`;
 
