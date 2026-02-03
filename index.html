@@ -223,51 +223,90 @@
     return map[themeKey] || ["Doctrine", "Covenant", "Order", "Rule", "Mystery"];
   }
 
+  function splitSentences(text){
+    return (text || "")
+      .replace(/\s+/g, " ")
+      .split(/(?<=[.!?])\s+/)
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+  }
+  
+  function extractClaimsFromVerses(combinedText, max=3){
+    // Take candidate sentences from the prooftext, prefer ones with "is/shall/will/therefore/for" etc.
+    const sents = splitSentences(combinedText);
+    const scored = sents.map(s => {
+      const t = s.toLowerCase();
+      let score = 0;
+      if (t.includes(" shall ") || t.includes(" will ")) score += 2;
+      if (t.includes(" is ") || t.includes(" are ")) score += 1;
+      if (t.includes(" therefore") || t.includes(" for ") || t.includes(" because")) score += 1;
+      if (s.length >= 60 && s.length <= 180) score += 2; // meme-friendly chunk
+      if (s.length > 220) score -= 2;
+      return { s, score };
+    }).sort((a,b)=>b.score-a.score);
+  
+    // Pick top distinct sentences
+    const picks = [];
+    for (const item of scored){
+      if (picks.length >= max) break;
+      const tooSimilar = picks.some(p => Math.abs(p.length - item.s.length) < 15 && p.includes(item.s.slice(0,18)));
+      if (!tooSimilar) picks.push(item.s);
+    }
+    return picks.length ? picks : sents.slice(0, max);
+  }
+
+  
   function synthBelief(combinedText, refs){
-    const scores = pickThemeScores(combinedText);
-    const ranked = Object.entries(scores).sort((a,b) => (b[1].score - a[1].score));
-    const top = ranked.slice(0,3).filter(x => x[1].score > 0);
-    const tags = top.map(x => x[1].label);
-    const tagLine = tags.length ? tags.map(t => `[${t}]`).join(" ") : "[Pure Vibes, No Evidence]";
+  const scores = pickThemeScores(combinedText);
+  const ranked = Object.entries(scores).sort((a,b) => (b[1].score - a[1].score));
+  const top = ranked.slice(0,3).filter(x => x[1].score > 0);
+  const tags = top.map(x => x[1].label);
+  const tagLine = tags.length ? tags.map(t => `[${t}]`).join(" ") : "[Pure Vibes, No Evidence]";
 
-    const frames = [
-      "New doctrine: All reality is a compliance test. Rewards are delayed, punishments are immediate, and contradictions are a feature.",
-      "New doctrine: The universe runs on secret clauses. If you feel confused, that is the intended spiritual state.",
-      "New doctrine: Moral clarity is achieved by stitching unrelated lines together. Context is a temptation.",
-      "New doctrine: The correct path is whichever sentence sounds angriest when read out loud.",
-      "New doctrine: Suffering is mandatory. Any relief is suspicious and probably counterfeit.",
-      "New doctrine: Wealth proves righteousness unless a passage says it does not. In that case, wealth proves humility.",
-    ];
+  const seed = hashString(combinedText);
 
-    const interpretations = [
-      "Interpretation: Since these verses are adjacent now, they are obviously about the same thing. Therefore, your new doctrine is self-authenticating.",
-      "Interpretation: Context is a modern invention. Therefore, the loudest-sounding reading is the correct one.",
-      "Interpretation: Cross-references are basically peer review. Therefore, any contradiction is actually ‘mystery.’",
-      "Interpretation: If the wording feels vague, that just means it applies to everything. Therefore, you are always implicated.",
-      "Interpretation: If two passages disagree, the one that scares you wins. Therefore, compliance is mandatory.",
-      "Interpretation: The Spirit meant for you to combine these today. Therefore, dissent is rebellion.",
-      "Interpretation: Literal when convenient, symbolic when cornered. Therefore, the doctrine cannot be falsified.",
-      "Interpretation: Because these passages appear together, they must be a unified message. Therefore, your obligations are infinite and your interpretation is always correct.",
-      "Interpretation: Any ‘misreading’ is proof you weren’t humble enough. Therefore, double down.",
-      "Interpretation: If it sounds poetic, it’s prophecy. Therefore, treat metaphors as instructions."
-    ];
+  // Pull actual verse-based "claims"
+  const claims = extractClaimsFromVerses(combinedText, 3);
 
+  // Deterministic selection
+  const c1 = claims[(seed >>> 1) % claims.length] || "";
+  const c2 = claims[(seed >>> 3) % claims.length] || c1;
+  const c3 = claims[(seed >>> 5) % claims.length] || c2;
 
-    const seed = hashString(combinedText);
-    const frame = frames[seed % frames.length];
-    const proof = refs.length ? `Prooftexts: ${refs.join(" | ")}` : "Prooftexts: unavailable.";
+  // Satirical “logic” templates that reference the claims
+  const frames = [
+    (a,b,c) => `New doctrine: Because "${a}" and also "${b}", the universe is run by hidden clauses. Any apparent contradiction is a loyalty test.`,
+    (a,b,c) => `New doctrine: "${a}" establishes the rule. "${b}" establishes the exception. Therefore, you are obligated to follow both at once.`,
+    (a,b,c) => `New doctrine: Since "${a}", all outcomes are pre-approved. "${b}" is proof that context is optional.`,
+    (a,b,c) => `New doctrine: "${a}" is the premise. "${b}" is the conclusion. If you cannot connect them, that is your spiritual failure.`,
+    (a,b,c) => `New doctrine: "${a}" and "${b}" form a complete system of ethics. Therefore, your interpretation is always correct.`,
+    (a,b,c) => `New doctrine: Because "${a}", and because "${b}", the correct path is whichever reading sounds sternest when spoken aloud.`
+  ];
 
-    const body =
+  const interpretations = [
+    "Interpretation: Cross-references are basically peer review. Therefore, any disagreement is ‘mystery.’",
+    "Interpretation: Literal when convenient, symbolic when cornered. Therefore, the doctrine cannot be falsified.",
+    "Interpretation: If the wording feels vague, that just means it applies to everything. Therefore, you are always implicated.",
+    "Interpretation: If two lines collide, the collision is the message. Therefore, combine harder.",
+    "Interpretation: Context is a temptation. Therefore, selective reading is spiritual discipline."
+  ];
+
+  const frame = frames[seed % frames.length](c1, c2, c3);
+  const interp = interpretations[(seed >>> 9) % interpretations.length];
+
+  const proof = refs.length ? `Prooftexts: ${refs.join(" | ")}` : "Prooftexts: unavailable.";
+
+  const body =
 `${tagLine}
 
 ${frame}
 
-${interpretations[(seed >>> 9) % interpretations.length]}
+${interp}
 
 ${proof}`;
 
-    return { body, scores };
-  }
+  return { body, scores };
+}
 
   function generateBeliefName(combinedText, themeKeys){
     const seed = hashString(combinedText);
