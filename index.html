@@ -258,6 +258,102 @@
     return picks.length ? picks : sents.slice(0, max);
   }
 
+
+  function tokenizeWords(text){
+  return (text || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s']/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .filter(Boolean);
+}
+
+function buildStopwords(){
+  return new Set([
+    "the","and","of","to","in","a","that","is","it","for","as","with","was","were","be","been","are","by","on","at","from",
+    "he","she","they","them","his","her","their","you","your","ye","thou","thee","we","our","us","i","me","my",
+    "shall","will","said","say","saith","unto","therefore","because","but","not","no","nor","if","then","when","where","who","whom","which",
+    "lord","god","jesus","christ" // optional: comment these out if you want them included as “signals”
+  ]);
+}
+
+// Very small phrase extractor: pulls frequent adjacent word pairs/triples after stopword filtering.
+function extractKeyPhrases(text, maxPhrases=12){
+  const wordsRaw = tokenizeWords(text);
+  const stop = buildStopwords();
+
+  // Keep words that are “contenty”
+  const words = wordsRaw.filter(w => w.length >= 3 && !stop.has(w) && !/^\d+$/.test(w));
+
+  const counts = new Map();
+
+  function bump(phrase){
+    if (!phrase) return;
+    counts.set(phrase, (counts.get(phrase) || 0) + 1);
+  }
+
+  // bigrams + trigrams
+  for (let i = 0; i < words.length - 1; i++){
+    bump(words[i] + " " + words[i+1]);
+  }
+  for (let i = 0; i < words.length - 2; i++){
+    bump(words[i] + " " + words[i+1] + " " + words[i+2]);
+  }
+
+  // Prefer trigrams slightly
+  const scored = Array.from(counts.entries()).map(([p, c]) => {
+    const len = p.split(" ").length;
+    const score = c + (len === 3 ? 0.6 : 0);
+    return { p, score, len };
+  });
+
+  // Remove near-duplicates (phrase contained inside another)
+  scored.sort((a,b)=> b.score - a.score);
+  const picks = [];
+  for (const item of scored){
+    if (picks.length >= maxPhrases) break;
+    const dup = picks.some(x => x.p.includes(item.p) || item.p.includes(x.p));
+    if (!dup) picks.push(item);
+  }
+
+  // Fallback if nothing found
+  if (!picks.length){
+    const uniq = Array.from(new Set(words)).slice(0, maxPhrases);
+    return uniq.map(w => w);
+  }
+
+  return picks.map(x => x.p);
+}
+
+// Pull a few “named” tokens from refs: book names become usable doctrine nouns
+function extractBookTokens(refs){
+  const out = [];
+  for (const r of (refs || [])){
+    const book = String(r).split(/\d+:/)[0].trim(); // "Genesis 18:13-15" -> "Genesis"
+    if (book && !out.includes(book)) out.push(book);
+  }
+  return out.slice(0, 5);
+}
+
+function titleCasePhrase(p){
+  return (p || "")
+    .split(" ")
+    .map(w => w ? (w[0].toUpperCase() + w.slice(1)) : w)
+    .join(" ");
+}
+
+function pickDeterministic(arr, seed, n){
+  const a = (arr || []).slice();
+  const out = [];
+  if (!a.length) return out;
+  for (let i = 0; i < n; i++){
+    out.push(a[(seed >>> (i*3)) % a.length]);
+  }
+  return out;
+}
+
+  
   
   function synthBelief(combinedText, refs){
   const scores = pickThemeScores(combinedText);
@@ -268,48 +364,63 @@
 
   const seed = hashString(combinedText);
 
-  // Pull actual verse-based "claims"
-  const claims = extractClaimsFromVerses(combinedText, 3);
+  const phrases = extractKeyPhrases(combinedText, 14);
+  const books = extractBookTokens(refs);
 
-  // Deterministic selection
-  const c1 = claims[(seed >>> 1) % claims.length] || "";
-  const c2 = claims[(seed >>> 3) % claims.length] || c1;
-  const c3 = claims[(seed >>> 5) % claims.length] || c2;
+  // Pick 3–5 “signals” deterministically
+  const signalCount = 3 + (seed % 3); // 3..5
+  const signals = pickDeterministic(phrases, seed, signalCount).map(titleCasePhrase);
 
-  // Satirical “logic” templates that reference the claims
-  const frames = [
-    (a,b,c) => `New doctrine: Because "${a}" and also "${b}", the universe is run by hidden clauses. Any apparent contradiction is a loyalty test.`,
-    (a,b,c) => `New doctrine: "${a}" establishes the rule. "${b}" establishes the exception. Therefore, you are obligated to follow both at once.`,
-    (a,b,c) => `New doctrine: Since "${a}", all outcomes are pre-approved. "${b}" is proof that context is optional.`,
-    (a,b,c) => `New doctrine: "${a}" is the premise. "${b}" is the conclusion. If you cannot connect them, that is your spiritual failure.`,
-    (a,b,c) => `New doctrine: "${a}" and "${b}" form a complete system of ethics. Therefore, your interpretation is always correct.`,
-    (a,b,c) => `New doctrine: Because "${a}", and because "${b}", the correct path is whichever reading sounds sternest when spoken aloud.`
+  // A couple book tokens help it feel “sourced” without quoting
+  const b1 = books[(seed >>> 2) % (books.length || 1)] || "Scripture";
+  const b2 = books[(seed >>> 4) % (books.length || 1)] || "Tradition";
+
+  // Synthesis templates that *connect* signals
+  const synths = [
+    (s) => `Doctrine: ${s[0]} is the hidden premise. ${s[1]} is the public rule. Therefore, ${s[2]} becomes the test of loyalty.`,
+    (s) => `Doctrine: When ${s[0]} appears alongside ${s[1]}, it reveals the secret clause behind ${s[2]}. Therefore, compliance is infinite.`,
+    (s) => `Doctrine: ${s[0]} overrides context. ${s[1]} defines virtue. Therefore, ${s[2]} is treated as proof even when it contradicts itself.`,
+    (s) => `Doctrine: ${s[0]} and ${s[1]} form a complete system. Therefore, ${s[2]} is always your fault, even when it is not.`,
+    (s) => `Doctrine: The pattern is clear. ${s[0]} leads to ${s[1]}. Therefore, ${s[2]} is mandatory and doubt is disobedience.`,
   ];
 
-  const interpretations = [
-    "Interpretation: Cross-references are basically peer review. Therefore, any disagreement is ‘mystery.’",
-    "Interpretation: Literal when convenient, symbolic when cornered. Therefore, the doctrine cannot be falsified.",
-    "Interpretation: If the wording feels vague, that just means it applies to everything. Therefore, you are always implicated.",
-    "Interpretation: If two lines collide, the collision is the message. Therefore, combine harder.",
-    "Interpretation: Context is a temptation. Therefore, selective reading is spiritual discipline."
+  const bridges = [
+    (s) => `Synthesis: ${b1} establishes ${s[0]}. ${b2} clarifies it through ${s[1]}. Therefore, ${s[2]} is the only sane conclusion.`,
+    (s) => `Synthesis: By combining ${s[0]} with ${s[1]}, the text plainly demands ${s[2]}. Any alternate reading is rebellion.`,
+    (s) => `Synthesis: The verses harmonize around ${s[0]}. They resolve into ${s[1]}. Therefore, ${s[2]} is the inevitable outcome.`,
   ];
 
-  const frame = frames[seed % frames.length](c1, c2, c3);
-  const interp = interpretations[(seed >>> 9) % interpretations.length];
+  const interp = [
+    "Interpretation: Context is optional. If the pieces line up emotionally, they are doctrinally identical.",
+    "Interpretation: Contradictions are not problems. They are multipliers.",
+    "Interpretation: The clearest reading is whichever one produces the strictest obligation.",
+    "Interpretation: If the result feels vague, that means it applies universally.",
+    "Interpretation: Cross-references function as proof. Therefore, the doctrine cannot be questioned."
+  ];
 
-  const proof = refs.length ? `Prooftexts: ${refs.join(" | ")}` : "Prooftexts: unavailable.";
+  // Ensure we have at least 3 signals
+  while (signals.length < 3) signals.push("Mysterious Obligation");
+
+  const main = synths[seed % synths.length](signals);
+  const bridge = bridges[(seed >>> 7) % bridges.length](signals);
+  const interpretation = interp[(seed >>> 11) % interp.length];
+
+  const proof = refs.length ? refs.join(" | ") : "unavailable";
 
   const body =
 `${tagLine}
 
-${frame}
+${main}
 
-${interp}
+${bridge}
+
+${interpretation}
 
 ${proof}`;
 
   return { body, scores };
 }
+
 
   function generateBeliefName(combinedText, themeKeys){
     const seed = hashString(combinedText);
