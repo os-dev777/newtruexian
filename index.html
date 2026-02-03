@@ -451,86 +451,128 @@ ${proof}`;
 
   function exportBeliefPNG(entry){
     const choice = $("pngSize").value;
-
+  
     let w = 1080, h = 1080;
     if (choice === "1350") { w = 1080; h = 1350; }
     if (choice === "1920") { w = 1920; h = 1080; }
-
+  
     const c = makeCanvas(w, h);
     const ctx = c.getContext("2d");
-
+  
     const seed = hashString(entry.combinedText);
     drawParchment(ctx, w, h, seed);
-
-    // Text styling
+  
     const pad = Math.round(Math.min(w,h) * 0.07);
     const innerW = w - pad*2;
-
+  
     ctx.fillStyle = "rgba(20,12,6,0.92)";
-
-    // Title
+    ctx.textBaseline = "top";
+  
+    // ---------- Extract pieces from beliefText ----------
+    const lines = (entry.beliefText || "").split("\n").map(s => s.trim()).filter(Boolean);
+    const rawFrame = lines.find(l => l.toLowerCase().startsWith("new doctrine:")) || "";
+    const rawInterp = lines.find(l => l.toLowerCase().startsWith("interpretation:")) || "";
+    const frame = rawFrame.replace(/^New doctrine:\s*/i, "").trim();
+    const interp = rawInterp.replace(/^Interpretation:\s*/i, "").trim();
+    const doctrineText = cleanText(`${frame} ${interp}`); // main focus, larger
+    const tags = (entry.tags && entry.tags.length ? entry.tags : ["Pure Vibes, No Evidence"]);
+    const urlLeft = "HTTPS://OS-DEV777.GITHUB.IO/NEWTRUEXIAN";
+  
+    // ---------- Title ----------
     const titleFont = Math.round(Math.min(w,h) * 0.055);
     ctx.font = `800 ${titleFont}px "Trajan Pro", Cinzel, serif`;
     ctx.textAlign = "left";
-    ctx.textBaseline = "top";
     let y = pad;
-
-    // Title wrap
     y = wrapText(ctx, entry.beliefName, pad, y, innerW, Math.round(titleFont * 1.15), 2).y;
     y += Math.round(titleFont * 0.35);
-
+  
     // Divider
     ctx.strokeStyle = "rgba(20,12,6,0.55)";
     ctx.lineWidth = Math.max(2, Math.round(Math.min(w,h) * 0.003));
-    ctx.beginPath();
-    ctx.moveTo(pad, y);
-    ctx.lineTo(w - pad, y);
-    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(w - pad, y); ctx.stroke();
     y += Math.round(titleFont * 0.55);
-
-    // Tagline
-    const tags = entry.tags?.length ? entry.tags : ["Pure Vibes, No Evidence"];
-    ctx.font = `600 ${Math.round(titleFont * 0.55)}px "IM Fell English SC", serif`;
-    ctx.fillText(tags.map(t => `[${t}]`).join(" "), pad, y);
-    y += Math.round(titleFont * 0.9);
-
-    // Doctrine body (shortened for meme)
-    ctx.font = `400 ${Math.round(titleFont * 0.48)}px "IM Fell English SC", serif`;
-    const doctrine = entry.beliefText
-      .split("\n")
-      .filter(Boolean)
-      .slice(1) // drop the first tag line since we already show tags
-      .join(" ")
-      .replace(/\s+/g, " ")
-      .trim();
-
-    // Keep it meme-friendly: clamp lines
-    const bodyBlock = wrapText(ctx, doctrine, pad, y, innerW, Math.round(titleFont * 0.78), (h > w ? 10 : 8));
-    y = bodyBlock.y;
-    y += Math.round(titleFont * 0.6);
-
-    // Prooftexts (refs only)
-    ctx.font = `700 ${Math.round(titleFont * 0.42)}px "Trajan Pro", Cinzel, serif`;
-    ctx.fillText("PROOFTEXTS", pad, y);
-    y += Math.round(titleFont * 0.65);
-
-    ctx.font = `400 ${Math.round(titleFont * 0.42)}px "IM Fell English SC", serif`;
-    const refsLine = entry.refs.join(" · ");
-    wrapText(ctx, refsLine, pad, y, innerW, Math.round(titleFont * 0.68), 3);
-
-    // Footer watermark
-    ctx.globalAlpha = 0.75;
-    ctx.font = `600 ${Math.round(titleFont * 0.32)}px "Trajan Pro", Cinzel, serif`;
+  
+    // ---------- "Doctrine:" centered subheader ----------
+    ctx.textAlign = "center";
+    ctx.font = `800 ${Math.round(titleFont * 0.62)}px "Trajan Pro", Cinzel, serif`;
+    ctx.fillText("Doctrine:", w/2, y);
+    y += Math.round(titleFont * 0.85);
+  
+    // ---------- Main doctrine summary (bigger) ----------
+    ctx.textAlign = "left";
+    ctx.font = `600 ${Math.round(titleFont * 0.62)}px "IM Fell English SC", serif`;
+    const doctrineBlock = wrapText(ctx, doctrineText, pad, y, innerW, Math.round(titleFont * 0.92), (h > w ? 7 : 6));
+    y = doctrineBlock.y;
+    y += Math.round(titleFont * 0.55);
+  
+    // ---------- Tags (moved BELOW doctrine, ABOVE verses) ----------
+    ctx.font = `600 ${Math.round(titleFont * 0.48)}px "IM Fell English SC", serif`;
+    const tagLine = tags.map(t => `[${t}]`).join(" ");
+    y = wrapText(ctx, tagLine, pad, y, innerW, Math.round(titleFont * 0.7), 2).y;
+    y += Math.round(titleFont * 0.35);
+  
+    // Divider before verses
+    ctx.strokeStyle = "rgba(20,12,6,0.45)";
+    ctx.lineWidth = Math.max(2, Math.round(Math.min(w,h) * 0.0025));
+    ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(w - pad, y); ctx.stroke();
+    y += Math.round(titleFont * 0.45);
+  
+    // ---------- "Verses" subheader ----------
+    ctx.font = `800 ${Math.round(titleFont * 0.50)}px "Trajan Pro", Cinzel, serif`;
+    ctx.fillText("Verses", pad, y);
+    y += Math.round(titleFont * 0.72);
+  
+    // ---------- Full verse text (refs + verse text) ----------
+    // Slightly smaller than prior body text to fit more.
+    const refFont = Math.round(titleFont * 0.44);
+    const verseFont = Math.round(titleFont * 0.42);
+    const lineH = Math.round(titleFont * 0.72);
+  
+    // Reserve footer space
+    const footerFont = Math.round(titleFont * 0.32);
+    const footerPadY = pad + Math.round(titleFont * 0.15);
+    const bottomLimit = h - footerPadY - Math.round(footerFont * 1.8);
+  
+    for (let i = 0; i < entry.pulled.length; i++){
+      if (y > bottomLimit) break;
+  
+      const p = entry.pulled[i];
+      const ref = (p.ref || "").trim();
+      const text = cleanText(p.text || "");
+  
+      // Ref line (no "Prooftexts:" label; just refs)
+      ctx.font = `800 ${refFont}px "Trajan Pro", Cinzel, serif`;
+      y = wrapText(ctx, ref, pad, y, innerW, lineH, 2).y;
+  
+      // Verse text
+      ctx.font = `400 ${verseFont}px "IM Fell English SC", serif`;
+      const remainingLines = Math.max(2, Math.floor((bottomLimit - y) / lineH));
+      const used = wrapText(ctx, text, pad, y, innerW, lineH, Math.min(6, remainingLines));
+      y = used.y;
+  
+      y += Math.round(titleFont * 0.35);
+    }
+  
+    // ---------- Footer: URL left, watermark right ----------
+    ctx.globalAlpha = 0.78;
+    ctx.font = `600 ${footerFont}px "Trajan Pro", Cinzel, serif`;
+    ctx.textBaseline = "alphabetic";
+  
+    ctx.textAlign = "left";
+    ctx.fillText(urlLeft, pad, h - footerPadY);
+  
     ctx.textAlign = "right";
-    ctx.fillText("UNRELATED BIBLE PASSAGE COMBINER", w - pad, h - pad - Math.round(titleFont * 0.2));
+    ctx.fillText("UNRELATED BIBLE PASSAGE COMBINER", w - pad, h - footerPadY);
+  
     ctx.globalAlpha = 1;
-
+  
     c.toBlob((blob) => {
       const prefix = ($("filePrefix").value || "belief").trim();
       const file = `${safeFilename(prefix)}_${safeFilename(entry.beliefName)}_${Date.now()}.png`;
       downloadBlob(file, blob);
     }, "image/png");
   }
+
 
   function exportBeliefJSON(entry){
     const prefix = ($("filePrefix").value || "belief").trim();
