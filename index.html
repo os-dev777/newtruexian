@@ -728,7 +728,7 @@ ${proof}`;
 
       const synth = synthBelief(combinedText, refs);
       const themeKeys = topThemes(synth.scores, 3);
-      const beliefName = generateBeliefName(combinedText, themeKeys);
+      const beliefName = generateBeliefName(synth.body, themeKeys);
 
       const rankedTags = Object.entries(synth.scores)
         .sort((a,b) => b[1].score - a[1].score)
