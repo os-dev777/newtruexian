@@ -450,128 +450,237 @@ ${proof}`;
   }
 
   function exportBeliefPNG(entry){
-    const choice = $("pngSize").value;
-  
-    let w = 1080, h = 1080;
-    if (choice === "1350") { w = 1080; h = 1350; }
-    if (choice === "1920") { w = 1920; h = 1080; }
-  
-    const c = makeCanvas(w, h);
-    const ctx = c.getContext("2d");
-  
-    const seed = hashString(entry.combinedText);
-    drawParchment(ctx, w, h, seed);
-  
-    const pad = Math.round(Math.min(w,h) * 0.07);
-    const innerW = w - pad*2;
-  
-    ctx.fillStyle = "rgba(20,12,6,0.92)";
-    ctx.textBaseline = "top";
-  
-    // ---------- Extract pieces from beliefText ----------
-    const lines = (entry.beliefText || "").split("\n").map(s => s.trim()).filter(Boolean);
-    const rawFrame = lines.find(l => l.toLowerCase().startsWith("new doctrine:")) || "";
-    const rawInterp = lines.find(l => l.toLowerCase().startsWith("interpretation:")) || "";
-    const frame = rawFrame.replace(/^New doctrine:\s*/i, "").trim();
-    const interp = rawInterp.replace(/^Interpretation:\s*/i, "").trim();
-    const doctrineText = cleanText(`${frame} ${interp}`); // main focus, larger
-    const tags = (entry.tags && entry.tags.length ? entry.tags : ["Pure Vibes, No Evidence"]);
-    const urlLeft = "HTTPS://OS-DEV777.GITHUB.IO/NEWTRUEXIAN";
-  
-    // ---------- Title ----------
-    const titleFont = Math.round(Math.min(w,h) * 0.055);
-    ctx.font = `800 ${titleFont}px "Trajan Pro", Cinzel, serif`;
-    ctx.textAlign = "left";
-    let y = pad;
-    y = wrapText(ctx, entry.beliefName, pad, y, innerW, Math.round(titleFont * 1.15), 2).y;
-    y += Math.round(titleFont * 0.35);
-  
-    // Divider
-    ctx.strokeStyle = "rgba(20,12,6,0.55)";
-    ctx.lineWidth = Math.max(2, Math.round(Math.min(w,h) * 0.003));
-    ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(w - pad, y); ctx.stroke();
-    y += Math.round(titleFont * 0.55);
-  
-    // ---------- "Doctrine:" centered subheader ----------
-    ctx.textAlign = "center";
-    ctx.font = `800 ${Math.round(titleFont * 0.62)}px "Trajan Pro", Cinzel, serif`;
-    ctx.fillText("Doctrine:", w/2, y);
-    y += Math.round(titleFont * 0.85);
-  
-    // ---------- Main doctrine summary (bigger) ----------
-    ctx.textAlign = "left";
-    ctx.font = `600 ${Math.round(titleFont * 0.62)}px "IM Fell English SC", serif`;
-    const doctrineBlock = wrapText(ctx, doctrineText, pad, y, innerW, Math.round(titleFont * 0.92), (h > w ? 7 : 6));
-    y = doctrineBlock.y;
-    y += Math.round(titleFont * 0.55);
-  
-    // ---------- Tags (moved BELOW doctrine, ABOVE verses) ----------
-    ctx.font = `600 ${Math.round(titleFont * 0.48)}px "IM Fell English SC", serif`;
-    const tagLine = tags.map(t => `[${t}]`).join(" ");
-    y = wrapText(ctx, tagLine, pad, y, innerW, Math.round(titleFont * 0.7), 2).y;
-    y += Math.round(titleFont * 0.35);
-  
-    // Divider before verses
-    ctx.strokeStyle = "rgba(20,12,6,0.45)";
-    ctx.lineWidth = Math.max(2, Math.round(Math.min(w,h) * 0.0025));
-    ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(w - pad, y); ctx.stroke();
-    y += Math.round(titleFont * 0.45);
-  
-    // ---------- "Verses" subheader ----------
-    ctx.font = `800 ${Math.round(titleFont * 0.50)}px "Trajan Pro", Cinzel, serif`;
-    ctx.fillText("Verses", pad, y);
-    y += Math.round(titleFont * 0.72);
-  
-    // ---------- Full verse text (refs + verse text) ----------
-    // Slightly smaller than prior body text to fit more.
-    const refFont = Math.round(titleFont * 0.44);
-    const verseFont = Math.round(titleFont * 0.42);
-    const lineH = Math.round(titleFont * 0.72);
-  
-    // Reserve footer space
-    const footerFont = Math.round(titleFont * 0.32);
-    const footerPadY = pad + Math.round(titleFont * 0.15);
-    const bottomLimit = h - footerPadY - Math.round(footerFont * 1.8);
-  
+  const choice = $("pngSize").value;
+
+  let w = 1080, h = 1080;
+  if (choice === "1350") { w = 1080; h = 1350; }
+  if (choice === "1920") { w = 1920; h = 1080; }
+
+  const c = makeCanvas(w, h);
+  const ctx = c.getContext("2d");
+
+  const seed = hashString(entry.combinedText);
+  drawParchment(ctx, w, h, seed);
+
+  const pad = Math.round(Math.min(w,h) * 0.07);
+  const innerW = w - pad*2;
+
+  ctx.fillStyle = "rgba(20,12,6,0.92)";
+  ctx.textBaseline = "top";
+
+  // ---------- Extract doctrine summary ----------
+  const lines = (entry.beliefText || "").split("\n").map(s => s.trim()).filter(Boolean);
+  const rawFrame = lines.find(l => l.toLowerCase().startsWith("new doctrine:")) || "";
+  const rawInterp = lines.find(l => l.toLowerCase().startsWith("interpretation:")) || "";
+  const frame = rawFrame.replace(/^New doctrine:\s*/i, "").trim();
+  const interp = rawInterp.replace(/^Interpretation:\s*/i, "").trim();
+  const doctrineText = cleanText(`${frame} ${interp}`);
+
+  const tags = (entry.tags && entry.tags.length ? entry.tags : ["Pure Vibes, No Evidence"]);
+  const tagLine = tags.map(t => `[${t}]`).join(" ");
+  const urlLeft = "HTTPS://OS-DEV777.GITHUB.IO/NEWTRUEXIAN";
+
+  // ---------- Helpers (measure wrap without drawing) ----------
+  function countWrapLines(font, text, maxWidth){
+    ctx.font = font;
+    const words = (text || "").split(/\s+/).filter(Boolean);
+    if (!words.length) return 0;
+
+    let lines = 1;
+    let line = words[0];
+
+    for (let i = 1; i < words.length; i++){
+      const test = line + " " + words[i];
+      if (ctx.measureText(test).width > maxWidth){
+        lines++;
+        line = words[i];
+      } else {
+        line = test;
+      }
+    }
+    return lines;
+  }
+
+  function wrapDraw(font, text, x, y, maxWidth, lineHeight, maxLines){
+    ctx.font = font;
+    return wrapText(ctx, text, x, y, maxWidth, lineHeight, maxLines).y;
+  }
+
+  // ---------- Title ----------
+  const titleFont = Math.round(Math.min(w,h) * 0.055);
+
+  ctx.font = `800 ${titleFont}px "Trajan Pro", Cinzel, serif`;
+  ctx.textAlign = "left";
+  let y = pad;
+
+  y = wrapText(ctx, entry.beliefName, pad, y, innerW, Math.round(titleFont * 1.15), 2).y;
+  y += Math.round(titleFont * 0.35);
+
+  // Divider
+  ctx.strokeStyle = "rgba(20,12,6,0.55)";
+  ctx.lineWidth = Math.max(2, Math.round(Math.min(w,h) * 0.003));
+  ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(w - pad, y); ctx.stroke();
+  y += Math.round(titleFont * 0.55);
+
+  // ---------- "Doctrine:" centered ----------
+  ctx.textAlign = "center";
+  ctx.font = `800 ${Math.round(titleFont * 0.62)}px "Trajan Pro", Cinzel, serif`;
+  ctx.fillText("Doctrine:", w/2, y);
+  y += Math.round(titleFont * 0.85);
+
+  // Doctrine main focus
+  ctx.textAlign = "left";
+  ctx.font = `600 ${Math.round(titleFont * 0.62)}px "IM Fell English SC", serif`;
+  y = wrapText(ctx, doctrineText, pad, y, innerW, Math.round(titleFont * 0.92), (h > w ? 7 : 6)).y;
+  y += Math.round(titleFont * 0.45);
+
+  // Divider before verses
+  ctx.strokeStyle = "rgba(20,12,6,0.45)";
+  ctx.lineWidth = Math.max(2, Math.round(Math.min(w,h) * 0.0025));
+  ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(w - pad, y); ctx.stroke();
+  y += Math.round(titleFont * 0.40);
+
+  // ---------- "Verses" ----------
+  ctx.textAlign = "left";
+  ctx.font = `800 ${Math.round(titleFont * 0.50)}px "Trajan Pro", Cinzel, serif`;
+  ctx.fillText("Verses", pad, y);
+  y += Math.round(titleFont * 0.72);
+
+  // ---------- Footer reservation (adds padding above footer) ----------
+  const footerFont = Math.round(titleFont * 0.32);
+  const footerPadY = pad + Math.round(titleFont * 0.15);
+  const footerGap = Math.round(titleFont * 0.75); // extra breathing room above footer text
+  const bottomLimit = h - footerPadY - footerGap - Math.round(footerFont * 1.2);
+
+  // ---------- Auto-scale verses to fit ----------
+  let refPx = Math.round(titleFont * 0.44);
+  let tagPx = Math.round(titleFont * 0.40);
+  let versePx = Math.round(titleFont * 0.40);
+  let lineH  = Math.round(titleFont * 0.70);
+
+  const minVersePx = 16; // hard floor for readability
+
+  function estimateVersesHeight(refPx, tagPx, versePx, lineH){
+    const refFont = `800 ${refPx}px "Trajan Pro", Cinzel, serif`;
+    const tagFont = `600 ${tagPx}px "IM Fell English SC", serif`;
+    const verseFont = `400 ${versePx}px "IM Fell English SC", serif`;
+
+    let yy = 0;
+
     for (let i = 0; i < entry.pulled.length; i++){
-      if (y > bottomLimit) break;
-  
       const p = entry.pulled[i];
       const ref = (p.ref || "").trim();
       const text = cleanText(p.text || "");
-  
-      // Ref line (no "Prooftexts:" label; just refs)
-      ctx.font = `800 ${refFont}px "Trajan Pro", Cinzel, serif`;
-      y = wrapText(ctx, ref, pad, y, innerW, lineH, 2).y;
-  
-      // Verse text
-      ctx.font = `400 ${verseFont}px "IM Fell English SC", serif`;
-      const remainingLines = Math.max(2, Math.floor((bottomLimit - y) / lineH));
-      const used = wrapText(ctx, text, pad, y, innerW, lineH, Math.min(6, remainingLines));
-      y = used.y;
-  
-      y += Math.round(titleFont * 0.35);
+
+      // ref line
+      yy += lineH * Math.max(1, countWrapLines(refFont, ref, innerW));
+
+      // tags on same line if possible, otherwise next line(s)
+      ctx.font = refFont;
+      const refW = ctx.measureText(ref).width;
+      const gap = Math.round(refPx * 0.6);
+      const availForTagsSameLine = innerW - refW - gap;
+
+      if (availForTagsSameLine > 80){
+        const tagLinesSame = countWrapLines(tagFont, tagLine, availForTagsSameLine);
+        if (tagLinesSame > 1) yy += lineH * countWrapLines(tagFont, tagLine, innerW); // push to next line(s)
+      } else {
+        yy += lineH * countWrapLines(tagFont, tagLine, innerW);
+      }
+
+      // verse text
+      yy += lineH * Math.max(1, countWrapLines(verseFont, text, innerW));
+
+      // spacing between passages
+      yy += Math.round(lineH * 0.55);
     }
-  
-    // ---------- Footer: URL left, watermark right ----------
-    ctx.globalAlpha = 0.78;
-    ctx.font = `600 ${footerFont}px "Trajan Pro", Cinzel, serif`;
-    ctx.textBaseline = "alphabetic";
-  
-    ctx.textAlign = "left";
-    ctx.fillText(urlLeft, pad, h - footerPadY);
-  
-    ctx.textAlign = "right";
-    ctx.fillText("UNRELATED BIBLE PASSAGE COMBINER", w - pad, h - footerPadY);
-  
-    ctx.globalAlpha = 1;
-  
-    c.toBlob((blob) => {
-      const prefix = ($("filePrefix").value || "belief").trim();
-      const file = `${safeFilename(prefix)}_${safeFilename(entry.beliefName)}_${Date.now()}.png`;
-      downloadBlob(file, blob);
-    }, "image/png");
+
+    return yy;
   }
+
+  const availableH = Math.max(0, bottomLimit - y);
+  let est = estimateVersesHeight(refPx, tagPx, versePx, lineH);
+
+  while (est > availableH && versePx > minVersePx){
+    // scale down a bit and retry
+    refPx = Math.max(18, Math.round(refPx * 0.95));
+    tagPx = Math.max(16, Math.round(tagPx * 0.95));
+    versePx = Math.max(minVersePx, Math.round(versePx * 0.94));
+    lineH = Math.max(18, Math.round(lineH * 0.94));
+    est = estimateVersesHeight(refPx, tagPx, versePx, lineH);
+  }
+
+  const refFont = `800 ${refPx}px "Trajan Pro", Cinzel, serif`;
+  const tagFont = `600 ${tagPx}px "IM Fell English SC", serif`;
+  const verseFont = `400 ${versePx}px "IM Fell English SC", serif`;
+
+  // ---------- Draw verses (refs + tags inline, then verse text) ----------
+  for (let i = 0; i < entry.pulled.length; i++){
+    if (y > bottomLimit) break;
+
+    const p = entry.pulled[i];
+    const ref = (p.ref || "").trim();
+    const text = cleanText(p.text || "");
+
+    // ref
+    ctx.textAlign = "left";
+    const refStartY = y;
+    y = wrapDraw(refFont, ref, pad, y, innerW, lineH, 2);
+
+    // tags: try same line as the first ref line only
+    // If ref wrapped to 2 lines, put tags on next line.
+    const refWrapped = (y - refStartY) > lineH * 1.2;
+
+    if (!refWrapped){
+      ctx.font = refFont;
+      const refW = ctx.measureText(ref).width;
+      const gap = Math.round(refPx * 0.6);
+      const tagX = pad + refW + gap;
+      const avail = innerW - refW - gap;
+
+      if (avail > 80){
+        // if tags do not fit in the remaining space, move to next line(s)
+        const linesSame = countWrapLines(tagFont, tagLine, avail);
+        if (linesSame <= 1){
+          ctx.font = tagFont;
+          ctx.fillText(tagLine, tagX, refStartY);
+        } else {
+          y = wrapDraw(tagFont, tagLine, pad, y, innerW, lineH, 2);
+        }
+      } else {
+        y = wrapDraw(tagFont, tagLine, pad, y, innerW, lineH, 2);
+      }
+    } else {
+      y = wrapDraw(tagFont, tagLine, pad, y, innerW, lineH, 2);
+    }
+
+    // verse text
+    y = wrapDraw(verseFont, text, pad, y, innerW, lineH, 999);
+
+    // spacing
+    y += Math.round(lineH * 0.55);
+  }
+
+  // ---------- Footer ----------
+  ctx.globalAlpha = 0.78;
+  ctx.font = `600 ${footerFont}px "Trajan Pro", Cinzel, serif`;
+  ctx.textBaseline = "alphabetic";
+
+  ctx.textAlign = "left";
+  ctx.fillText(urlLeft, pad, h - footerPadY);
+
+  ctx.textAlign = "right";
+  ctx.fillText("UNRELATED BIBLE PASSAGE COMBINER", w - pad, h - footerPadY);
+
+  ctx.globalAlpha = 1;
+
+  c.toBlob((blob) => {
+    const prefix = ($("filePrefix").value || "belief").trim();
+    const file = `${safeFilename(prefix)}_${safeFilename(entry.beliefName)}_${Date.now()}.png`;
+    downloadBlob(file, blob);
+  }, "image/png");
+}
+
 
 
   function exportBeliefJSON(entry){
