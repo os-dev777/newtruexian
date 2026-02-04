@@ -278,53 +278,47 @@ function buildStopwords(){
   ]);
 }
 
-// Very small phrase extractor: pulls frequent adjacent word pairs/triples after stopword filtering.
-function extractKeyPhrases(text, maxPhrases=12){
-  const wordsRaw = tokenizeWords(text);
-  const stop = buildStopwords();
+function extractConcepts(text, max=14){
+  const t = (text || "").toLowerCase();
 
-  // Keep words that are “contenty”
-  const words = wordsRaw.filter(w => w.length >= 3 && !stop.has(w) && !/^\d+$/.test(w));
+  // Curated concept dictionary. Add to this over time.
+  const concepts = [
+    "wrath","judgment","vengeance","mercy","grace","peace","rest","hope","fear","obedience","command","statute","law",
+    "covenant","promise","faith","belief","wisdom","folly","truth","deceit","justice","blood","sacrifice","altar",
+    "idol","abomination","clean","unclean","holy","sanctify","sin","iniquity","repent","forgive",
+    "wealth","treasure","gold","silver","poverty","debt","tithe",
+    "sword","stone","fire","plague","war","enemy","stranger","foreigner","gentile","nation","king","priest","prophet",
+    "end","last","trumpet","beast","seal","heaven","hell","resurrection"
+  ];
 
-  const counts = new Map();
-
-  function bump(phrase){
-    if (!phrase) return;
-    counts.set(phrase, (counts.get(phrase) || 0) + 1);
+  // Score by occurrences (substring match is fine for this use)
+  const scored = [];
+  for (const c of concepts){
+    const re = new RegExp("\\b" + c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "g");
+    const m = t.match(re);
+    if (m && m.length) scored.push({ c, score: m.length });
   }
 
-  // bigrams + trigrams
-  for (let i = 0; i < words.length - 1; i++){
-    bump(words[i] + " " + words[i+1]);
-  }
-  for (let i = 0; i < words.length - 2; i++){
-    bump(words[i] + " " + words[i+1] + " " + words[i+2]);
-  }
+  scored.sort((a,b)=>b.score-a.score);
 
-  // Prefer trigrams slightly
-  const scored = Array.from(counts.entries()).map(([p, c]) => {
-    const len = p.split(" ").length;
-    const score = c + (len === 3 ? 0.6 : 0);
-    return { p, score, len };
-  });
-
-  // Remove near-duplicates (phrase contained inside another)
-  scored.sort((a,b)=> b.score - a.score);
-  const picks = [];
-  for (const item of scored){
-    if (picks.length >= maxPhrases) break;
-    const dup = picks.some(x => x.p.includes(item.p) || item.p.includes(x.p));
-    if (!dup) picks.push(item);
+  // Fallback if no concepts hit: grab decent single words (not phrases)
+  if (!scored.length){
+    const stop = buildStopwords();
+    const words = tokenizeWords(text).filter(w => w.length >= 5 && !stop.has(w) && !/^\d+$/.test(w));
+    const freq = new Map();
+    for (const w of words) freq.set(w, (freq.get(w) || 0) + 1);
+    const fallback = Array.from(freq.entries()).sort((a,b)=>b[1]-a[1]).slice(0, max).map(x=>x[0]);
+    return fallback.length ? fallback : ["mystery","obligation","context"];
   }
 
-  // Fallback if nothing found
-  if (!picks.length){
-    const uniq = Array.from(new Set(words)).slice(0, maxPhrases);
-    return uniq.map(w => w);
-  }
-
-  return picks.map(x => x.p);
+  // Return top concepts
+  return scored.slice(0, max).map(x => x.c);
 }
+
+function niceConcept(c){
+  return (c || "").split(" ").map(w => w ? (w[0].toUpperCase()+w.slice(1)) : w).join(" ");
+}
+
 
 // Pull a few “named” tokens from refs: book names become usable doctrine nouns
 function extractBookTokens(refs){
@@ -364,12 +358,8 @@ function pickDeterministic(arr, seed, n){
 
   const seed = hashString(combinedText);
 
-  const phrases = extractKeyPhrases(combinedText, 14);
-  const books = extractBookTokens(refs);
-
-  // Pick 3–5 “signals” deterministically
-  const signalCount = 3 + (seed % 3); // 3..5
-  const signals = pickDeterministic(phrases, seed, signalCount).map(titleCasePhrase);
+  const concepts = extractConcepts(combinedText, 14);
+  const signals = pickDeterministic(concepts, seed, signalCount).map(niceConcept);
 
   // A couple book tokens help it feel “sourced” without quoting
   const b1 = books[(seed >>> 2) % (books.length || 1)] || "Scripture";
