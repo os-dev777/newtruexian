@@ -12,7 +12,7 @@
   <link rel="icon" href="./favicon.ico" sizes="any">
   <link rel="icon" type="image/png" href="./favicon-32.png" sizes="32x32">
   <link rel="icon" type="image/png" href="./favicon-16.png" sizes="16x16">
-  
+
   <style>
     :root { color-scheme: dark; }
     :root { --ray1: rgba(190, 220, 255, 0.85); --ray2: rgba(140, 190, 255, 0.45); --ray3: rgba(90, 140, 220, 0.25); }
@@ -46,7 +46,6 @@
     .headerIcon { width:170px; height:170px; flex:0 0 170px; }
     .headerText h1 { margin: 0 0 10px; font-size: 22px; }
     .headerText p { margin: 0 0 10px; font-size: 14px; }
-    
   </style>
 </head>
 <body>
@@ -152,7 +151,6 @@
   const btnPng = $("exportPng");
   const btnJson = $("exportJson");
 
-  // Current entry stored for export/import
   let currentEntry = null;
 
   function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
@@ -166,7 +164,6 @@
 
   function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
 
-  // Simple deterministic hash to drive "naming" without needing a RNG seed lib
   function hashString(str){
     let h = 2166136261;
     for (let i = 0; i < str.length; i++){
@@ -226,191 +223,140 @@
     return map[themeKey] || ["Doctrine", "Covenant", "Order", "Rule", "Mystery"];
   }
 
-  function splitSentences(text){
-    return (text || "")
-      .replace(/\s+/g, " ")
-      .split(/(?<=[.!?])\s+/)
-      .map(s => s.trim())
-      .filter(s => s.length > 0);
-  }
-  
-  function extractClaimsFromVerses(combinedText, max=3){
-    // Take candidate sentences from the prooftext, prefer ones with "is/shall/will/therefore/for" etc.
-    const sents = splitSentences(combinedText);
-    const scored = sents.map(s => {
-      const t = s.toLowerCase();
-      let score = 0;
-      if (t.includes(" shall ") || t.includes(" will ")) score += 2;
-      if (t.includes(" is ") || t.includes(" are ")) score += 1;
-      if (t.includes(" therefore") || t.includes(" for ") || t.includes(" because")) score += 1;
-      if (s.length >= 60 && s.length <= 180) score += 2; // meme-friendly chunk
-      if (s.length > 220) score -= 2;
-      return { s, score };
-    }).sort((a,b)=>b.score-a.score);
-  
-    // Pick top distinct sentences
-    const picks = [];
-    for (const item of scored){
-      if (picks.length >= max) break;
-      const tooSimilar = picks.some(p => Math.abs(p.length - item.s.length) < 15 && p.includes(item.s.slice(0,18)));
-      if (!tooSimilar) picks.push(item.s);
-    }
-    return picks.length ? picks : sents.slice(0, max);
-  }
-
-
   function tokenizeWords(text){
-  return (text || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9\s']/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .split(" ")
-    .filter(Boolean);
-}
-
-function buildStopwords(){
-  return new Set([
-    "the","and","of","to","in","a","that","is","it","for","as","with","was","were","be","been","are","by","on","at","from",
-    "he","she","they","them","his","her","their","you","your","ye","thou","thee","we","our","us","i","me","my",
-    "shall","will","said","say","saith","unto","therefore","because","but","not","no","nor","if","then","when","where","who","whom","which",
-    "lord","god","jesus","christ" // optional: comment these out if you want them included as “signals”
-  ]);
-}
-
-function extractConcepts(text, max=14){
-  const t = (text || "").toLowerCase();
-
-  // Curated concept dictionary. Add to this over time.
-  const concepts = [
-    "wrath","judgment","vengeance","mercy","grace","peace","rest","hope","fear","obedience","command","statute","law",
-    "covenant","promise","faith","belief","wisdom","folly","truth","deceit","justice","blood","sacrifice","altar",
-    "idol","abomination","clean","unclean","holy","sanctify","sin","iniquity","repent","forgive",
-    "wealth","treasure","gold","silver","poverty","debt","tithe",
-    "sword","stone","fire","plague","war","enemy","stranger","foreigner","gentile","nation","king","priest","prophet",
-    "end","last","trumpet","beast","seal","heaven","hell","resurrection"
-  ];
-
-  // Score by occurrences (substring match is fine for this use)
-  const scored = [];
-  for (const c of concepts){
-    const re = new RegExp("\\b" + c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "g");
-    const m = t.match(re);
-    if (m && m.length) scored.push({ c, score: m.length });
+    return (text || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9\s']/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .split(" ")
+      .filter(Boolean);
   }
 
-  scored.sort((a,b)=>b.score-a.score);
-
-  // Fallback if no concepts hit: grab decent single words (not phrases)
-  if (!scored.length){
-    const stop = buildStopwords();
-    const words = tokenizeWords(text).filter(w => w.length >= 5 && !stop.has(w) && !/^\d+$/.test(w));
-    const freq = new Map();
-    for (const w of words) freq.set(w, (freq.get(w) || 0) + 1);
-    const fallback = Array.from(freq.entries()).sort((a,b)=>b[1]-a[1]).slice(0, max).map(x=>x[0]);
-    return fallback.length ? fallback : ["mystery","obligation","context"];
+  function buildStopwords(){
+    return new Set([
+      "the","and","of","to","in","a","that","is","it","for","as","with","was","were","be","been","are","by","on","at","from",
+      "he","she","they","them","his","her","their","you","your","ye","thou","thee","we","our","us","i","me","my",
+      "shall","will","said","say","saith","unto","therefore","because","but","not","no","nor","if","then","when","where","who","whom","which",
+      "lord","god","jesus","christ"
+    ]);
   }
 
-  // Return top concepts
-  return scored.slice(0, max).map(x => x.c);
-}
+  function extractConcepts(text, max=14){
+    const t = (text || "").toLowerCase();
+    const concepts = [
+      "wrath","judgment","vengeance","mercy","grace","peace","rest","hope","fear","obedience","command","statute","law",
+      "covenant","promise","faith","belief","wisdom","truth","justice","blood","sacrifice","altar",
+      "idol","abomination","clean","unclean","holy","sanctify","sin","iniquity","repent","forgive",
+      "wealth","treasure","gold","silver","poverty","debt","tithe",
+      "sword","stone","fire","plague","war","enemy","stranger","foreigner","gentile","nation","king","priest","prophet",
+      "end","last","trumpet","beast","seal","heaven","hell","resurrection"
+    ];
 
-function niceConcept(c){
-  return (c || "").split(" ").map(w => w ? (w[0].toUpperCase()+w.slice(1)) : w).join(" ");
-}
+    const scored = [];
+    for (const c of concepts){
+      const re = new RegExp("\\b" + c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "g");
+      const m = t.match(re);
+      if (m && m.length) scored.push({ c, score: m.length });
+    }
+    scored.sort((a,b)=>b.score-a.score);
 
+    if (!scored.length){
+      const stop = buildStopwords();
+      const words = tokenizeWords(text).filter(w => w.length >= 5 && !stop.has(w) && !/^\d+$/.test(w));
+      const freq = new Map();
+      for (const w of words) freq.set(w, (freq.get(w) || 0) + 1);
+      const fallback = Array.from(freq.entries()).sort((a,b)=>b[1]-a[1]).slice(0, max).map(x=>x[0]);
+      return fallback.length ? fallback : ["mystery","obligation","context"];
+    }
 
-// Pull a few “named” tokens from refs: book names become usable doctrine nouns
-function extractBookTokens(refs){
-  const out = [];
-  for (const r of (refs || [])){
-    const book = String(r).split(/\d+:/)[0].trim(); // "Genesis 18:13-15" -> "Genesis"
-    if (book && !out.includes(book)) out.push(book);
+    return scored.slice(0, max).map(x => x.c);
   }
-  return out.slice(0, 5);
-}
 
-function titleCasePhrase(p){
-  return (p || "")
-    .split(" ")
-    .map(w => w ? (w[0].toUpperCase() + w.slice(1)) : w)
-    .join(" ");
-}
-
-function pickDeterministic(arr, seed, n){
-  const a = (arr || []).slice();
-  const out = [];
-  if (!a.length) return out;
-  for (let i = 0; i < n; i++){
-    out.push(a[(seed >>> (i*3)) % a.length]);
+  function niceConcept(c){
+    return (c || "").split(" ").map(w => w ? (w[0].toUpperCase()+w.slice(1)) : w).join(" ");
   }
-  return out;
-}
 
-  
-  
+  function extractBookTokens(refs){
+    const out = [];
+    for (const r of (refs || [])){
+      const book = String(r).split(/\d+:/)[0].trim();
+      if (book && !out.includes(book)) out.push(book);
+    }
+    return out.slice(0, 5);
+  }
+
+  function pickDeterministic(arr, seed, n){
+    const a = (arr || []).slice();
+    const out = [];
+    if (!a.length) return out;
+    for (let i = 0; i < n; i++){
+      out.push(a[(seed >>> (i*3)) % a.length]);
+    }
+    return out;
+  }
+
   function synthBelief(combinedText, refs){
-  const scores = pickThemeScores(combinedText);
-  const ranked = Object.entries(scores).sort((a,b) => (b[1].score - a[1].score));
-  const top = ranked.slice(0,3).filter(x => x[1].score > 0);
-  const tags = top.map(x => x[1].label);
-  const tagLine = tags.length ? tags.map(t => `[${t}]`).join(" ") : "[Pure Vibes, No Evidence]";
+    const scores = pickThemeScores(combinedText);
+    const ranked = Object.entries(scores).sort((a,b) => (b[1].score - a[1].score));
+    const top = ranked.slice(0,3).filter(x => x[1].score > 0);
+    const tags = top.map(x => x[1].label);
+    const tagLine = tags.length ? tags.map(t => `[${t}]`).join(" ") : "[Pure Vibes, No Evidence]";
 
-  const seed = hashString(combinedText);
+    const seed = hashString(combinedText);
 
-  const concepts = extractConcepts(combinedText, 14);
-  const signals = pickDeterministic(concepts, seed, signalCount).map(niceConcept);
+    const concepts = extractConcepts(combinedText, 14);
+    const signalCount = 4; // FIX: was referenced but never defined
+    const signals = pickDeterministic(concepts, seed, signalCount).map(niceConcept);
 
-  // A couple book tokens help it feel “sourced” without quoting
-  const b1 = books[(seed >>> 2) % (books.length || 1)] || "Scripture";
-  const b2 = books[(seed >>> 4) % (books.length || 1)] || "Tradition";
+    while (signals.length < 4) signals.push("Mysterious Obligation");
 
-  // Synthesis templates that *connect* signals
-  const synths = [
-    (s) => `Doctrine: ${s[0]} is the hidden premise. ${s[1]} is the public rule. Therefore, ${s[2]} becomes the test of loyalty.`,
-    (s) => `Doctrine: When ${s[0]} appears alongside ${s[1]}, it reveals the secret clause behind ${s[2]}. Therefore, compliance is infinite.`,
-    (s) => `Doctrine: ${s[0]} overrides context. ${s[1]} defines virtue. Therefore, ${s[2]} is treated as proof even when it contradicts itself.`,
-    (s) => `Doctrine: ${s[0]} and ${s[1]} form a complete system. Therefore, ${s[2]} is always your fault, even when it is not.`,
-    (s) => `Doctrine: The pattern is clear. ${s[0]} leads to ${s[1]}. Therefore, ${s[2]} is mandatory and doubt is disobedience.`,
-  ];
+    const books = extractBookTokens(refs); // FIX: was referenced but never defined
+    const b1 = books[0] || "Scripture";
+    const b2 = books[1] || "the footnotes";
 
-  const bridges = [
-    (s) => `Synthesis: ${b1} establishes ${s[0]}. ${b2} clarifies it through ${s[1]}. Therefore, ${s[2]} is the only sane conclusion.`,
-    (s) => `Synthesis: By combining ${s[0]} with ${s[1]}, the text plainly demands ${s[2]}. Any alternate reading is rebellion.`,
-    (s) => `Synthesis: The verses harmonize around ${s[0]}. They resolve into ${s[1]}. Therefore, ${s[2]} is the inevitable outcome.`,
-  ];
+    const s0 = signals[0], s1 = signals[1], s2 = signals[2], s3 = signals[3];
 
-  const interp = [
-    "Interpretation: Context is optional. If the pieces line up emotionally, they are doctrinally identical.",
-    "Interpretation: Contradictions are not problems. They are multipliers.",
-    "Interpretation: The clearest reading is whichever one produces the strictest obligation.",
-    "Interpretation: If the result feels vague, that means it applies universally.",
-    "Interpretation: Cross-references function as proof. Therefore, the doctrine cannot be questioned."
-  ];
+    const doctrines = [
+      () => `New doctrine: ${s0} is the hidden requirement. ${s1} is the public signal. Therefore, ${s2} becomes the measure of righteousness.`,
+      () => `New doctrine: When ${s0} and ${s1} appear together, it creates a new rule. Therefore, ${s2} must be enforced even when it clashes with ${s3}.`,
+      () => `New doctrine: ${s0} proves intent. ${s1} proves authority. Therefore, ${s2} is mandatory, and any hesitation is treated as ${s3}.`,
+      () => `New doctrine: The text treats ${s0} as a trigger and ${s1} as the outcome. Therefore, ${s2} is reclassified as obedience, not preference.`,
+      () => `New doctrine: ${s0} is the exception that eats the rule. ${s1} is the rule that eats the person. Therefore, ${s2} becomes a permanent obligation.`
+    ];
 
-  // Ensure we have at least 3 signals
-  while (signals.length < 3) signals.push("Mysterious Obligation");
+    const synths = [
+      () => `Synthesis: ${b1} establishes the premise through ${s0}. ${b2} expands it through ${s1}. Therefore, the doctrine is completed by ${s2}.`,
+      () => `Synthesis: These passages rhyme around ${s0}. They converge on ${s1}. Therefore, ${s2} is the only acceptable reading.`,
+      () => `Synthesis: The combined prooftext frames ${s0} as essential and ${s1} as confirming evidence. Therefore, ${s2} becomes the required response.`
+    ];
 
-  const main = synths[seed % synths.length](signals);
-  const bridge = bridges[(seed >>> 7) % bridges.length](signals);
-  const interpretation = interp[(seed >>> 11) % interp.length];
+    const interps = [
+      () => `Interpretation: Context is optional. If the concepts align, the command applies universally. Today’s enforcement keyword is ${s3}.`,
+      () => `Interpretation: Contradictions are not problems. They are multipliers. If the result feels too strict, that confirms ${s3}.`,
+      () => `Interpretation: The clearest reading is whichever creates the strongest obligation. Therefore, ${s3} is treated as suspicion, not caution.`,
+      () => `Interpretation: Cross-references function as proof. Therefore, the doctrine cannot be questioned without triggering ${s3}.`
+    ];
 
-  const proof = refs.length ? refs.join(" | ") : "unavailable";
+    const doctrine = doctrines[seed % doctrines.length]();
+    const synthesis = synths[(seed >>> 7) % synths.length]();
+    const interpretation = interps[(seed >>> 11) % interps.length]();
 
-  const body =
+    const proof = (refs && refs.length) ? refs.join(" | ") : "unavailable";
+
+    const body =
 `${tagLine}
 
-${main}
+${doctrine}
 
-${bridge}
+${synthesis}
 
 ${interpretation}
 
 ${proof}`;
 
-  return { body, scores };
-}
-
+    return { body, scores };
+  }
 
   function generateBeliefName(combinedText, themeKeys){
     const seed = hashString(combinedText);
@@ -438,10 +384,7 @@ ${proof}`;
     const noun = pickFrom(nouns1, seed >>> 5);
     const noun2 = pickFrom(nouns2, seed >>> 7);
 
-    return patt
-      .replace("{ADJ}", adj)
-      .replace("{NOUN}", noun)
-      .replace("{NOUN2}", noun2);
+    return patt.replace("{ADJ}", adj).replace("{NOUN}", noun).replace("{NOUN2}", noun2);
   }
 
   async function fetchJson(url){
@@ -527,18 +470,15 @@ ${proof}`;
   }
 
   function drawParchment(ctx, w, h, seed){
-    // Base gradient
     const g = ctx.createLinearGradient(0, 0, w, h);
     g.addColorStop(0, "#ead8b0");
     g.addColorStop(1, "#caa97a");
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, w, h);
 
-    // Noise speckles
     const img = ctx.getImageData(0, 0, w, h);
     const d = img.data;
 
-    // Deterministic pseudo-rand
     let r = seed >>> 0;
     const rand = () => {
       r ^= r << 13; r >>>= 0;
@@ -548,22 +488,19 @@ ${proof}`;
     };
 
     for (let i = 0; i < d.length; i += 4){
-      const n = (rand() - 0.5) * 26; // intensity
+      const n = (rand() - 0.5) * 26;
       d[i] = clamp(d[i] + n, 0, 255);
       d[i+1] = clamp(d[i+1] + n, 0, 255);
       d[i+2] = clamp(d[i+2] + n, 0, 255);
-      // alpha unchanged
     }
     ctx.putImageData(img, 0, 0);
 
-    // Edge vignette
     const vg = ctx.createRadialGradient(w*0.5, h*0.5, Math.min(w,h)*0.2, w*0.5, h*0.5, Math.max(w,h)*0.7);
     vg.addColorStop(0, "rgba(0,0,0,0)");
     vg.addColorStop(1, "rgba(0,0,0,0.35)");
     ctx.fillStyle = vg;
     ctx.fillRect(0, 0, w, h);
 
-    // Border
     ctx.strokeStyle = "rgba(40,25,10,0.65)";
     ctx.lineWidth = Math.max(6, Math.round(Math.min(w,h) * 0.008));
     ctx.strokeRect(ctx.lineWidth/2, ctx.lineWidth/2, w - ctx.lineWidth, h - ctx.lineWidth);
@@ -595,238 +532,211 @@ ${proof}`;
   }
 
   function exportBeliefPNG(entry){
-  const choice = $("pngSize").value;
+    const choice = $("pngSize").value;
 
-  let w = 1080, h = 1080;
-  if (choice === "1350") { w = 1080; h = 1350; }
-  if (choice === "1920") { w = 1920; h = 1080; }
+    let w = 1080, h = 1080;
+    if (choice === "1350") { w = 1080; h = 1350; }
+    if (choice === "1920") { w = 1920; h = 1080; }
 
-  const c = makeCanvas(w, h);
-  const ctx = c.getContext("2d");
+    const c = makeCanvas(w, h);
+    const ctx = c.getContext("2d");
 
-  const seed = hashString(entry.combinedText);
-  drawParchment(ctx, w, h, seed);
+    const seed = hashString(entry.combinedText);
+    drawParchment(ctx, w, h, seed);
 
-  const pad = Math.round(Math.min(w,h) * 0.07);
-  const innerW = w - pad*2;
+    const pad = Math.round(Math.min(w,h) * 0.07);
+    const innerW = w - pad*2;
 
-  ctx.fillStyle = "rgba(20,12,6,0.92)";
-  ctx.textBaseline = "top";
+    ctx.fillStyle = "rgba(20,12,6,0.92)";
+    ctx.textBaseline = "top";
 
-  // ---------- Extract doctrine summary ----------
-  const lines = (entry.beliefText || "").split("\n").map(s => s.trim()).filter(Boolean);
-  const rawFrame = lines.find(l => l.toLowerCase().startsWith("new doctrine:")) || "";
-  const rawInterp = lines.find(l => l.toLowerCase().startsWith("interpretation:")) || "";
-  const frame = rawFrame.replace(/^New doctrine:\s*/i, "").trim();
-  const interp = rawInterp.replace(/^Interpretation:\s*/i, "").trim();
-  const doctrineText = cleanText(`${frame} ${interp}`);
+    const lines = (entry.beliefText || "").split("\n").map(s => s.trim()).filter(Boolean);
+    const rawFrame = lines.find(l => l.toLowerCase().startsWith("new doctrine:")) || "";
+    const rawInterp = lines.find(l => l.toLowerCase().startsWith("interpretation:")) || "";
+    const frame = rawFrame.replace(/^New doctrine:\s*/i, "").trim();
+    const interp = rawInterp.replace(/^Interpretation:\s*/i, "").trim();
+    const doctrineText = cleanText(`${frame} ${interp}`);
 
-  const tags = (entry.tags && entry.tags.length ? entry.tags : ["Pure Vibes, No Evidence"]);
-  const tagLine = tags.map(t => `[${t}]`).join(" ");
-  const urlLeft = "HTTPS://OS-DEV777.GITHUB.IO/NEWTRUEXIAN";
+    const tags = (entry.tags && entry.tags.length ? entry.tags : ["Pure Vibes, No Evidence"]);
+    const tagLine = tags.map(t => `[${t}]`).join(" ");
+    const urlLeft = "HTTPS://OS-DEV777.GITHUB.IO/NEWTRUEXIAN";
 
-  // ---------- Helpers (measure wrap without drawing) ----------
-  function countWrapLines(font, text, maxWidth){
-    ctx.font = font;
-    const words = (text || "").split(/\s+/).filter(Boolean);
-    if (!words.length) return 0;
+    function countWrapLines(font, text, maxWidth){
+      ctx.font = font;
+      const words = (text || "").split(/\s+/).filter(Boolean);
+      if (!words.length) return 0;
 
-    let lines = 1;
-    let line = words[0];
+      let lines = 1;
+      let line = words[0];
 
-    for (let i = 1; i < words.length; i++){
-      const test = line + " " + words[i];
-      if (ctx.measureText(test).width > maxWidth){
-        lines++;
-        line = words[i];
-      } else {
-        line = test;
+      for (let i = 1; i < words.length; i++){
+        const test = line + " " + words[i];
+        if (ctx.measureText(test).width > maxWidth){
+          lines++;
+          line = words[i];
+        } else {
+          line = test;
+        }
       }
+      return lines;
     }
-    return lines;
-  }
 
-  function wrapDraw(font, text, x, y, maxWidth, lineHeight, maxLines){
-    ctx.font = font;
-    return wrapText(ctx, text, x, y, maxWidth, lineHeight, maxLines).y;
-  }
+    function wrapDraw(font, text, x, y, maxWidth, lineHeight, maxLines){
+      ctx.font = font;
+      return wrapText(ctx, text, x, y, maxWidth, lineHeight, maxLines).y;
+    }
 
-  // ---------- Title ----------
-  const titleFont = Math.round(Math.min(w,h) * 0.055);
+    const titleFont = Math.round(Math.min(w,h) * 0.055);
 
-  ctx.font = `800 ${titleFont}px "Trajan Pro", Cinzel, serif`;
-  ctx.textAlign = "left";
-  let y = pad;
+    ctx.font = `800 ${titleFont}px "Trajan Pro", Cinzel, serif`;
+    ctx.textAlign = "left";
+    let y = pad;
 
-  y = wrapText(ctx, entry.beliefName, pad, y, innerW, Math.round(titleFont * 1.15), 2).y;
-  y += Math.round(titleFont * 0.35);
+    y = wrapText(ctx, entry.beliefName, pad, y, innerW, Math.round(titleFont * 1.15), 2).y;
+    y += Math.round(titleFont * 0.35);
 
-  // Divider
-  ctx.strokeStyle = "rgba(20,12,6,0.55)";
-  ctx.lineWidth = Math.max(2, Math.round(Math.min(w,h) * 0.003));
-  ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(w - pad, y); ctx.stroke();
-  y += Math.round(titleFont * 0.55);
+    ctx.strokeStyle = "rgba(20,12,6,0.55)";
+    ctx.lineWidth = Math.max(2, Math.round(Math.min(w,h) * 0.003));
+    ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(w - pad, y); ctx.stroke();
+    y += Math.round(titleFont * 0.55);
 
-  // ---------- "Doctrine:" centered ----------
-  ctx.textAlign = "center";
-  ctx.font = `800 ${Math.round(titleFont * 0.62)}px "Trajan Pro", Cinzel, serif`;
-  ctx.fillText("Doctrine:", w/2, y);
-  y += Math.round(titleFont * 0.85);
+    ctx.textAlign = "center";
+    ctx.font = `800 ${Math.round(titleFont * 0.62)}px "Trajan Pro", Cinzel, serif`;
+    ctx.fillText("Doctrine:", w/2, y);
+    y += Math.round(titleFont * 0.85);
 
-  // Doctrine main focus
-  ctx.textAlign = "left";
-  ctx.font = `600 ${Math.round(titleFont * 0.62)}px "IM Fell English SC", serif`;
-  y = wrapText(ctx, doctrineText, pad, y, innerW, Math.round(titleFont * 0.92), (h > w ? 7 : 6)).y;
-  y += Math.round(titleFont * 0.45);
+    ctx.textAlign = "left";
+    ctx.font = `600 ${Math.round(titleFont * 0.62)}px "IM Fell English SC", serif`;
+    y = wrapText(ctx, doctrineText, pad, y, innerW, Math.round(titleFont * 0.92), (h > w ? 7 : 6)).y;
+    y += Math.round(titleFont * 0.45);
 
-  // Divider before verses
-  ctx.strokeStyle = "rgba(20,12,6,0.45)";
-  ctx.lineWidth = Math.max(2, Math.round(Math.min(w,h) * 0.0025));
-  ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(w - pad, y); ctx.stroke();
-  y += Math.round(titleFont * 0.40);
+    ctx.strokeStyle = "rgba(20,12,6,0.45)";
+    ctx.lineWidth = Math.max(2, Math.round(Math.min(w,h) * 0.0025));
+    ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(w - pad, y); ctx.stroke();
+    y += Math.round(titleFont * 0.40);
 
-  // ---------- "Verses" ----------
-  ctx.textAlign = "left";
-  ctx.font = `800 ${Math.round(titleFont * 0.50)}px "Trajan Pro", Cinzel, serif`;
-  ctx.fillText("Verses", pad, y);
-  y += Math.round(titleFont * 0.72);
+    ctx.textAlign = "left";
+    ctx.font = `800 ${Math.round(titleFont * 0.50)}px "Trajan Pro", Cinzel, serif`;
+    ctx.fillText("Verses", pad, y);
+    y += Math.round(titleFont * 0.72);
 
-  // ---------- Footer reservation (adds padding above footer) ----------
-  const footerFont = Math.round(titleFont * 0.32);
-  const footerPadY = pad + Math.round(titleFont * 0.15);
-  const footerGap = Math.round(titleFont * 0.75); // extra breathing room above footer text
-  const bottomLimit = h - footerPadY - footerGap - Math.round(footerFont * 1.2);
+    const footerFont = Math.round(titleFont * 0.32);
+    const footerPadY = pad + Math.round(titleFont * 0.15);
+    const footerGap = Math.round(titleFont * 0.75);
+    const bottomLimit = h - footerPadY - footerGap - Math.round(footerFont * 1.2);
 
-  // ---------- Auto-scale verses to fit ----------
-  let refPx = Math.round(titleFont * 0.44);
-  let tagPx = Math.round(titleFont * 0.40);
-  let versePx = Math.round(titleFont * 0.40);
-  let lineH  = Math.round(titleFont * 0.70);
+    let refPx = Math.round(titleFont * 0.44);
+    let tagPx = Math.round(titleFont * 0.40);
+    let versePx = Math.round(titleFont * 0.40);
+    let lineH  = Math.round(titleFont * 0.70);
 
-  const minVersePx = 16; // hard floor for readability
+    const minVersePx = 16;
 
-  function estimateVersesHeight(refPx, tagPx, versePx, lineH){
+    function estimateVersesHeight(refPx, tagPx, versePx, lineH){
+      const refFont = `800 ${refPx}px "Trajan Pro", Cinzel, serif`;
+      const tagFont = `600 ${tagPx}px "IM Fell English SC", serif`;
+      const verseFont = `400 ${versePx}px "IM Fell English SC", serif`;
+
+      let yy = 0;
+
+      for (let i = 0; i < entry.pulled.length; i++){
+        const p = entry.pulled[i];
+        const ref = (p.ref || "").trim();
+        const text = cleanText(p.text || "");
+
+        yy += lineH * Math.max(1, countWrapLines(refFont, ref, innerW));
+
+        ctx.font = refFont;
+        const refW = ctx.measureText(ref).width;
+        const gap = Math.round(refPx * 0.6);
+        const availForTagsSameLine = innerW - refW - gap;
+
+        if (availForTagsSameLine > 80){
+          const tagLinesSame = countWrapLines(tagFont, tagLine, availForTagsSameLine);
+          if (tagLinesSame > 1) yy += lineH * countWrapLines(tagFont, tagLine, innerW);
+        } else {
+          yy += lineH * countWrapLines(tagFont, tagLine, innerW);
+        }
+
+        yy += lineH * Math.max(1, countWrapLines(verseFont, text, innerW));
+        yy += Math.round(lineH * 0.55);
+      }
+
+      return yy;
+    }
+
+    const availableH = Math.max(0, bottomLimit - y);
+    let est = estimateVersesHeight(refPx, tagPx, versePx, lineH);
+
+    while (est > availableH && versePx > minVersePx){
+      refPx = Math.max(18, Math.round(refPx * 0.95));
+      tagPx = Math.max(16, Math.round(tagPx * 0.95));
+      versePx = Math.max(minVersePx, Math.round(versePx * 0.94));
+      lineH = Math.max(18, Math.round(lineH * 0.94));
+      est = estimateVersesHeight(refPx, tagPx, versePx, lineH);
+    }
+
     const refFont = `800 ${refPx}px "Trajan Pro", Cinzel, serif`;
     const tagFont = `600 ${tagPx}px "IM Fell English SC", serif`;
     const verseFont = `400 ${versePx}px "IM Fell English SC", serif`;
 
-    let yy = 0;
-
     for (let i = 0; i < entry.pulled.length; i++){
+      if (y > bottomLimit) break;
+
       const p = entry.pulled[i];
       const ref = (p.ref || "").trim();
       const text = cleanText(p.text || "");
 
-      // ref line
-      yy += lineH * Math.max(1, countWrapLines(refFont, ref, innerW));
+      ctx.textAlign = "left";
+      const refStartY = y;
+      y = wrapDraw(refFont, ref, pad, y, innerW, lineH, 2);
 
-      // tags on same line if possible, otherwise next line(s)
-      ctx.font = refFont;
-      const refW = ctx.measureText(ref).width;
-      const gap = Math.round(refPx * 0.6);
-      const availForTagsSameLine = innerW - refW - gap;
+      const refWrapped = (y - refStartY) > lineH * 1.2;
 
-      if (availForTagsSameLine > 80){
-        const tagLinesSame = countWrapLines(tagFont, tagLine, availForTagsSameLine);
-        if (tagLinesSame > 1) yy += lineH * countWrapLines(tagFont, tagLine, innerW); // push to next line(s)
-      } else {
-        yy += lineH * countWrapLines(tagFont, tagLine, innerW);
-      }
+      if (!refWrapped){
+        ctx.font = refFont;
+        const refW = ctx.measureText(ref).width;
+        const gap = Math.round(refPx * 0.6);
+        const tagX = pad + refW + gap;
+        const avail = innerW - refW - gap;
 
-      // verse text
-      yy += lineH * Math.max(1, countWrapLines(verseFont, text, innerW));
-
-      // spacing between passages
-      yy += Math.round(lineH * 0.55);
-    }
-
-    return yy;
-  }
-
-  const availableH = Math.max(0, bottomLimit - y);
-  let est = estimateVersesHeight(refPx, tagPx, versePx, lineH);
-
-  while (est > availableH && versePx > minVersePx){
-    // scale down a bit and retry
-    refPx = Math.max(18, Math.round(refPx * 0.95));
-    tagPx = Math.max(16, Math.round(tagPx * 0.95));
-    versePx = Math.max(minVersePx, Math.round(versePx * 0.94));
-    lineH = Math.max(18, Math.round(lineH * 0.94));
-    est = estimateVersesHeight(refPx, tagPx, versePx, lineH);
-  }
-
-  const refFont = `800 ${refPx}px "Trajan Pro", Cinzel, serif`;
-  const tagFont = `600 ${tagPx}px "IM Fell English SC", serif`;
-  const verseFont = `400 ${versePx}px "IM Fell English SC", serif`;
-
-  // ---------- Draw verses (refs + tags inline, then verse text) ----------
-  for (let i = 0; i < entry.pulled.length; i++){
-    if (y > bottomLimit) break;
-
-    const p = entry.pulled[i];
-    const ref = (p.ref || "").trim();
-    const text = cleanText(p.text || "");
-
-    // ref
-    ctx.textAlign = "left";
-    const refStartY = y;
-    y = wrapDraw(refFont, ref, pad, y, innerW, lineH, 2);
-
-    // tags: try same line as the first ref line only
-    // If ref wrapped to 2 lines, put tags on next line.
-    const refWrapped = (y - refStartY) > lineH * 1.2;
-
-    if (!refWrapped){
-      ctx.font = refFont;
-      const refW = ctx.measureText(ref).width;
-      const gap = Math.round(refPx * 0.6);
-      const tagX = pad + refW + gap;
-      const avail = innerW - refW - gap;
-
-      if (avail > 80){
-        // if tags do not fit in the remaining space, move to next line(s)
-        const linesSame = countWrapLines(tagFont, tagLine, avail);
-        if (linesSame <= 1){
-          ctx.font = tagFont;
-          ctx.fillText(tagLine, tagX, refStartY);
+        if (avail > 80){
+          const linesSame = countWrapLines(tagFont, tagLine, avail);
+          if (linesSame <= 1){
+            ctx.font = tagFont;
+            ctx.fillText(tagLine, tagX, refStartY);
+          } else {
+            y = wrapDraw(tagFont, tagLine, pad, y, innerW, lineH, 2);
+          }
         } else {
           y = wrapDraw(tagFont, tagLine, pad, y, innerW, lineH, 2);
         }
       } else {
         y = wrapDraw(tagFont, tagLine, pad, y, innerW, lineH, 2);
       }
-    } else {
-      y = wrapDraw(tagFont, tagLine, pad, y, innerW, lineH, 2);
+
+      y = wrapDraw(verseFont, text, pad, y, innerW, lineH, 999);
+      y += Math.round(lineH * 0.55);
     }
 
-    // verse text
-    y = wrapDraw(verseFont, text, pad, y, innerW, lineH, 999);
+    ctx.globalAlpha = 0.78;
+    ctx.font = `600 ${footerFont}px "Trajan Pro", Cinzel, serif`;
+    ctx.textBaseline = "alphabetic";
 
-    // spacing
-    y += Math.round(lineH * 0.55);
+    ctx.textAlign = "left";
+    ctx.fillText(urlLeft, pad, h - footerPadY);
+
+    ctx.textAlign = "right";
+    ctx.fillText("NEW CHRISTIAN DOCTRINE GENERATOR", w - pad, h - footerPadY);
+
+    ctx.globalAlpha = 1;
+
+    c.toBlob((blob) => {
+      const prefix = ($("filePrefix").value || "belief").trim();
+      const file = `${safeFilename(prefix)}_${safeFilename(entry.beliefName)}_${Date.now()}.png`;
+      downloadBlob(file, blob);
+    }, "image/png");
   }
-
-  // ---------- Footer ----------
-  ctx.globalAlpha = 0.78;
-  ctx.font = `600 ${footerFont}px "Trajan Pro", Cinzel, serif`;
-  ctx.textBaseline = "alphabetic";
-
-  ctx.textAlign = "left";
-  ctx.fillText(urlLeft, pad, h - footerPadY);
-
-  ctx.textAlign = "right";
-  ctx.fillText("NEW CHRISTIAN DOCTRINE GENERATOR", w - pad, h - footerPadY);
-
-  ctx.globalAlpha = 1;
-
-  c.toBlob((blob) => {
-    const prefix = ($("filePrefix").value || "belief").trim();
-    const file = `${safeFilename(prefix)}_${safeFilename(entry.beliefName)}_${Date.now()}.png`;
-    downloadBlob(file, blob);
-  }, "image/png");
-}
-
-
 
   function exportBeliefJSON(entry){
     const prefix = ($("filePrefix").value || "belief").trim();
@@ -845,7 +755,6 @@ ${proof}`;
     btnJson.disabled = false;
   }
 
-  // ---------- UI events ----------
   btnGenerate.addEventListener("click", async () => {
     btnGenerate.disabled = true;
     btnPng.disabled = true;
@@ -873,7 +782,7 @@ ${proof}`;
 
       const synth = synthBelief(combinedText, refs);
       const themeKeys = topThemes(synth.scores, 3);
-      const beliefName = generateBeliefName(synth.body, themeKeys);
+      const beliefName = generateBeliefName(combinedText, themeKeys); // FIX: was using synth.body
 
       const rankedTags = Object.entries(synth.scores)
         .sort((a,b) => b[1].score - a[1].score)
@@ -925,14 +834,12 @@ ${proof}`;
       const txt = await f.text();
       const obj = JSON.parse(txt);
 
-      // Minimal validation
       if (!obj || !obj.pulled || !obj.refs || !obj.beliefText || !obj.beliefName) {
         throw new Error("Invalid JSON format. Missing required fields.");
       }
 
       currentEntry = obj;
 
-      // Restore UI selectors if present
       if (obj.settings) {
         if (typeof obj.settings.count === "number") $("count").value = String(obj.settings.count);
         if (typeof obj.settings.translation === "string") $("translation").value = obj.settings.translation;
