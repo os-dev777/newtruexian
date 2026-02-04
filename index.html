@@ -297,54 +297,88 @@
   }
 
   function synthBelief(combinedText, refs){
-    const scores = pickThemeScores(combinedText);
-    const ranked = Object.entries(scores).sort((a,b) => (b[1].score - a[1].score));
-    const top = ranked.slice(0,3).filter(x => x[1].score > 0);
-    const tags = top.map(x => x[1].label);
-    const tagLine = tags.length ? tags.map(t => `[${t}]`).join(" ") : "[Pure Vibes, No Evidence]";
+  const scores = pickThemeScores(combinedText);
+  const ranked = Object.entries(scores).sort((a,b) => (b[1].score - a[1].score));
+  const top = ranked.slice(0,3).filter(x => x[1].score > 0);
+  const tags = top.map(x => x[1].label);
+  const tagLine = tags.length ? tags.map(t => `[${t}]`).join(" ") : "[Pure Vibes, No Evidence]";
 
-    const seed = hashString(combinedText);
+  const seed = hashString(combinedText);
 
-    const concepts = extractConcepts(combinedText, 14);
-    const signalCount = 4; // FIX: was referenced but never defined
-    const signals = pickDeterministic(concepts, seed, signalCount).map(niceConcept);
+  // Concepts from the text (your existing extractConcepts)
+  const concepts = extractConcepts(combinedText, 14);
 
-    while (signals.length < 4) signals.push("Mysterious Obligation");
+  // Bucket them into human-readable themes
+  const bucketMap = {
+    king:"Authority", priest:"Authority", prophet:"Authority", nation:"Authority",
+    enemy:"Outsiders", stranger:"Outsiders", foreigner:"Outsiders", gentile:"Outsiders",
+    sword:"Punishment", stone:"Punishment", fire:"Punishment", plague:"Punishment", war:"Punishment",
+    wrath:"Punishment", vengeance:"Punishment", judgment:"Punishment",
+    law:"Law", statute:"Law", command:"Law", obedience:"Law", fear:"Law",
+    clean:"Purity", unclean:"Purity", holy:"Purity", sanctify:"Purity", abomination:"Purity",
+    mercy:"Mercy", grace:"Mercy", peace:"Mercy", rest:"Mercy", hope:"Mercy", forgive:"Mercy", repent:"Mercy",
+    wealth:"Money", treasure:"Money", gold:"Money", silver:"Money", debt:"Money", tithe:"Money", poverty:"Money",
+    trumpet:"EndTimes", beast:"EndTimes", seal:"EndTimes", resurrection:"EndTimes", heaven:"EndTimes", hell:"EndTimes",
+    end:"EndTimes", last:"EndTimes",
+    covenant:"Covenant", promise:"Covenant",
+    faith:"Faith", belief:"Faith",
+    truth:"Truth", justice:"Truth",
+    sin:"Sin", iniquity:"Sin",
+    blood:"Sacrifice", sacrifice:"Sacrifice", altar:"Sacrifice",
+    idol:"Idols"
+  };
 
-    const books = extractBookTokens(refs); // FIX: was referenced but never defined
-    const b1 = books[0] || "Scripture";
-    const b2 = books[1] || "the footnotes";
+  const buckets = [];
+  for (const c of concepts){
+    const b = bucketMap[c];
+    if (b && !buckets.includes(b)) buckets.push(b);
+  }
+  if (!buckets.length) buckets.push("Mystery");
 
-    const s0 = signals[0], s1 = signals[1], s2 = signals[2], s3 = signals[3];
+  // Deterministic pick 3–4 unique buckets
+  const picked = [];
+  for (let i = 0; i < buckets.length && picked.length < 4; i++){
+    const idx = (seed >>> (i*3)) % buckets.length;
+    const b = buckets[idx];
+    if (!picked.includes(b)) picked.push(b);
+  }
+  for (const b of buckets){
+    if (picked.length >= 4) break;
+    if (!picked.includes(b)) picked.push(b);
+  }
 
-    const doctrines = [
-      () => `New doctrine: ${s0} is the hidden requirement. ${s1} is the public signal. Therefore, ${s2} becomes the measure of righteousness.`,
-      () => `New doctrine: When ${s0} and ${s1} appear together, it creates a new rule. Therefore, ${s2} must be enforced even when it clashes with ${s3}.`,
-      () => `New doctrine: ${s0} proves intent. ${s1} proves authority. Therefore, ${s2} is mandatory, and any hesitation is treated as ${s3}.`,
-      () => `New doctrine: The text treats ${s0} as a trigger and ${s1} as the outcome. Therefore, ${s2} is reclassified as obedience, not preference.`,
-      () => `New doctrine: ${s0} is the exception that eats the rule. ${s1} is the rule that eats the person. Therefore, ${s2} becomes a permanent obligation.`
-    ];
+  const A = picked[0] || "Mystery";
+  const B = picked[1] || A;
+  const C = picked[2] || B;
+  const D = picked[3] || C;
 
-    const synths = [
-      () => `Synthesis: ${b1} establishes the premise through ${s0}. ${b2} expands it through ${s1}. Therefore, the doctrine is completed by ${s2}.`,
-      () => `Synthesis: These passages rhyme around ${s0}. They converge on ${s1}. Therefore, ${s2} is the only acceptable reading.`,
-      () => `Synthesis: The combined prooftext frames ${s0} as essential and ${s1} as confirming evidence. Therefore, ${s2} becomes the required response.`
-    ];
+  // Coherent, non-metaphor, satirical synthesis
+  const doctrines = [
+    () => `New doctrine: ${A} is treated as the rule, and ${B} is treated as the method. Therefore, ${C} becomes mandatory.`,
+    () => `New doctrine: The prooftext blends ${A} with ${B}. Therefore, the “correct” response is ${C}, regardless of context.`,
+    () => `New doctrine: ${A} supplies the premise and ${B} supplies the tone. Therefore, ${C} is declared to be the intended meaning.`,
+    () => `New doctrine: Whenever ${A} appears beside ${B}, it is assumed to create a new obligation. Therefore, ${C} overrides ${D}.`
+  ];
 
-    const interps = [
-      () => `Interpretation: Context is optional. If the concepts align, the command applies universally. Today’s enforcement keyword is ${s3}.`,
-      () => `Interpretation: Contradictions are not problems. They are multipliers. If the result feels too strict, that confirms ${s3}.`,
-      () => `Interpretation: The clearest reading is whichever creates the strongest obligation. Therefore, ${s3} is treated as suspicion, not caution.`,
-      () => `Interpretation: Cross-references function as proof. Therefore, the doctrine cannot be questioned without triggering ${s3}.`
-    ];
+  const synths = [
+    () => `Synthesis: The passages are treated as one unified message. ${A} sets the premise. ${B} sets the pressure. ${C} is the conclusion.`,
+    () => `Synthesis: Combine the themes, ignore the context. Start with ${A}, enforce with ${B}, and justify with ${C}.`,
+    () => `Synthesis: The doctrine is assembled by stacking signals. ${A} sounds important. ${B} sounds urgent. ${C} becomes “obedience.”`
+  ];
 
-    const doctrine = doctrines[seed % doctrines.length]();
-    const synthesis = synths[(seed >>> 7) % synths.length]();
-    const interpretation = interps[(seed >>> 11) % interps.length]();
+  const interps = [
+    () => `Interpretation: Context is optional. If the themes match emotionally, they are treated as logically connected.`,
+    () => `Interpretation: Any contradiction is explained as “mystery.” Therefore, the strictest reading wins.`,
+    () => `Interpretation: If the conclusion feels extreme, that is treated as confirmation rather than a warning sign.`
+  ];
 
-    const proof = (refs && refs.length) ? refs.join(" | ") : "unavailable";
+  const doctrine = doctrines[seed % doctrines.length]();
+  const synthesis = synths[(seed >>> 7) % synths.length]();
+  const interpretation = interps[(seed >>> 11) % interps.length]();
 
-    const body =
+  const proof = (refs && refs.length) ? refs.join(" | ") : "unavailable";
+
+  const body =
 `${tagLine}
 
 ${doctrine}
@@ -355,8 +389,9 @@ ${interpretation}
 
 ${proof}`;
 
-    return { body, scores };
-  }
+  return { body, scores };
+}
+
 
   function generateBeliefName(combinedText, themeKeys){
     const seed = hashString(combinedText);
