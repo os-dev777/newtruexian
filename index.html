@@ -250,7 +250,11 @@
       "idol","abomination","clean","unclean","holy","sanctify","sin","iniquity","repent","forgive",
       "wealth","treasure","gold","silver","poverty","debt","tithe",
       "sword","stone","fire","plague","war","enemy","stranger","foreigner","gentile","nation","king","priest","prophet",
-      "end","last","trumpet","beast","seal","heaven","hell","resurrection"
+      "end","last","trumpet","beast","seal","heaven","hell","resurrection", "salvation","save","saved","deliverance","deliver","redeem","redemption",
+      "righteous","righteousness","justify","justified","condemn","condemnation",
+      "gospel","grace","mercy","repent","repentance","forgive","forgiveness",
+      "elect","chosen","saints","kingdom","eternal","life","death"
+
     ];
 
     const scored = [];
@@ -325,7 +329,14 @@
     truth:"Truth", justice:"Truth",
     sin:"Sin", iniquity:"Sin",
     blood:"Sacrifice", sacrifice:"Sacrifice", altar:"Sacrifice",
-    idol:"Idols"
+    idol:"Idols",
+    salvation:"Salvation", save:"Salvation", saved:"Salvation",
+    deliverance:"Salvation", deliver:"Salvation", redeem:"Salvation", redemption:"Salvation",
+    righteous:"Justification", righteousness:"Justification", justify:"Justification", justified:"Justification",
+    condemn:"Justification", condemnation:"Justification",
+    gospel:"Salvation", kingdom:"Kingdom", eternal:"EternalLife", life:"EternalLife", death:"EternalLife",
+    elect:"Election", chosen:"Election", saints:"Election"
+
   };
 
   const buckets = [];
@@ -334,6 +345,11 @@
     if (b && !buckets.includes(b)) buckets.push(b);
   }
   if (!buckets.length) buckets.push("Mystery");
+
+  if (concepts.some(c => ["salvation","deliverance","redeem","redemption","save","saved","deliver"].includes(c))){
+    if (!buckets.includes("Salvation")) buckets.unshift("Salvation");
+  }
+
 
   // Deterministic pick 3–4 unique buckets
   const picked = [];
